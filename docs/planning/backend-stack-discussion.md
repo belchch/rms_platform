@@ -7,9 +7,9 @@
 ## 1. Контекст
 
 На момент обсуждения в проекте существует:
-- Мобильный Flutter‑клиент (MVP в разработке, этапы по `docs/planning/roadmap.md`).
+- Мобильный Flutter‑клиент (sprint 1 в разработке, этапы по `rms_mobile/docs/planning/sprint-1.md`).
 - Flame‑редактор плана помещения (`lib/ui/plan_editor/`).
-- Roadmap с архитектурой и планом этапов 0–6 (offline‑first, JWT, sync).
+- План sprint 1 с архитектурой и этапами 0–6 (offline‑first, JWT, sync) — **это только первый спринт, не весь MVP**.
 - Каноническая модель данных в `docs/planning/data-model.md`.
 
 Планируется:
@@ -27,7 +27,7 @@
 
 | Волна | Новое требование | Эффект на выбор |
 |---|---|---|
-| 1 | REST + sync + JWT + фото (исходное в roadmap §3, §7) | Определяет базовые потребности: реляционная БД, HTTP‑клиент, файловое хранилище |
+| 1 | REST + sync + JWT + фото (исходное в sprint-1 мобилки §3, §7) | Определяет базовые потребности: реляционная БД, HTTP‑клиент, файловое хранилище |
 | 2 | **Estimator‑модуль** с PDF/Excel‑экспортом | Добавляет нагрузку «серверной полиграфии» и денежной арифметики; усиливает Python (WeasyPrint) |
 | 3 | **Web‑клиент** для estimator (как у Magicplan) | Вводит выбор между HTMX / SPA (React/Vue) / Flutter Web |
 | 4 | Приоритет **статической типизации** + **надёжности** | Снимает FastAPI как основного кандидата; поднимает Go, Rust, TS |
@@ -153,7 +153,7 @@
 
 ### 3.3 Отвергнутые сразу
 
-- **Firebase / Supabase** — backend свой (явное требование roadmap §3.3). Supabase‑RLS плохо стыкуется с кастомным sync‑протоколом push/pull cursor.
+- **Firebase / Supabase** — backend свой (явное требование sprint-1 мобилки §3.3). Supabase‑RLS плохо стыкуется с кастомным sync‑протоколом push/pull cursor.
 - **MongoDB и любой NoSQL** — строго реляционные связи `Workspace → Project → Plan → Room → Wall`. JSONB в Postgres закрывает единственный нереляционный кейс (`Plan.payloadJson`).
 - **Django / Django REST** — async вторичен, ORM и админка не нужны, FastAPI легче.
 - **GraphQL / gRPC** — избыточно для 3–5 ресурсов.
@@ -188,7 +188,7 @@
 
 ## 5. Что меняется с estimator‑модулем (волна 2)
 
-Добавляет серверную нагрузку, которой не было в roadmap §3:
+Добавляет серверную нагрузку, которой не было в sprint-1 мобилки §3:
 
 | Подзадача | Требование | Влияние |
 |---|---|---|
@@ -237,9 +237,9 @@
 |---|---|---|
 | **Backend** | **Go + chi + sqlc + pgx + goose + huma** | chi (роутинг), sqlc (SQL→типизированный Go), pgx (драйвер), goose (миграции), huma (typed OpenAPI), zerolog, golang-jwt/jwt/v5 |
 | **Backend (Estimator — добавить позже)** | — | asynq/River (очередь фоновой генерации PDF), excelize (Excel-экспорт смет), Typst subprocess (PDF-генерация) |
-| **БД** | **PostgreSQL 16+** | JSONB для `Plan.payloadJson`, UUID v7 генерируется на клиенте (roadmap §4.2) |
-| **Файловое хранилище** | **S3‑совместимое** (MinIO локально, Cloudflare R2 / Backblaze B2 в проде) + **pre‑signed URL** (двухфазная загрузка фото) | Закрывает открытый вопрос roadmap §10: multipart vs pre‑signed |
-| **Auth** | JWT access 15 мин + refresh 30 дней (roadmap §8), refresh‑таблица в БД, cookie‑session для web | `golang-jwt/jwt/v5` |
+| **БД** | **PostgreSQL 16+** | JSONB для `Plan.payloadJson`, UUID v7 генерируется на клиенте (sprint-1 мобилки §4.2) |
+| **Файловое хранилище** | **S3‑совместимое** (MinIO локально, Cloudflare R2 / Backblaze B2 в проде) + **pre‑signed URL** (двухфазная загрузка фото) | Закрывает открытый вопрос sprint-1 мобилки §10: multipart vs pre‑signed |
+| **Auth** | JWT access 15 мин + refresh 30 дней (sprint-1 мобилки §8), refresh‑таблица в БД, cookie‑session для web | `golang-jwt/jwt/v5` |
 | **Web** | **Vue 3 + Quasar 2 + Pinia + openapi‑typescript + Vitest** | Оcознанный выбор инженера; AI‑fluency компенсируется готовыми компонентами + rules |
 | **Монорепо** | pnpm workspace: `apps/api/` (Go), `apps/web/` (Quasar), `packages/api-contracts/` (OpenAPI + generated TS) | Атомарные рефакторинги backend+web |
 | **Деплой** | Docker → Fly.io / Railway на MVP; Hetzner Cloud + Coolify при росте | Один бинарник Go (15–30 МБ) + `dist/spa/` от Quasar отдаётся тем же контейнером |
@@ -280,7 +280,7 @@
 
 ## 8. Открытые вопросы (к этому документу)
 
-- **Формат хранения Typst‑шаблонов сметы** (`.typ`‑файлы в репо vs в БД для динамического редактирования) — решать на этапе 9 (PDF‑экспорт) из обновлённого §9 roadmap.
+- **Формат хранения Typst‑шаблонов сметы** (`.typ`‑файлы в репо vs в БД для динамического редактирования) — решать на этапе PDF‑экспорта в будущем sprint-N (за рамками sprint 1).
 - **Связь web‑деплоя с backend‑деплоем**: один контейнер (Go отдаёт статику Quasar) vs два (Quasar на Cloudflare Pages, Go на Fly.io). Решение — по готовности этапа 7 (Estimator v0 на web).
 - **Monorepo‑инструмент**: pnpm workspace достаточно или нужен Turborepo для кеша билдов. Решить при первом появлении frontend‑пакета.
 - **Schema‑first vs code‑first для OpenAPI**: huma предлагает code‑first (Go‑типы → spec); альтернатива — писать `openapi.yaml` руками и генерировать Go‑stubs через `oapi-codegen`. Решить при старте этапа 4 (REST API).
@@ -290,8 +290,10 @@
 
 ## 9. Связанные документы
 
-- `docs/planning/roadmap.md` — общая архитектура и этапы 0–6.
-- `docs/planning/data-model.md` — каноническая доменная схема.
-- `docs/planning/stage-3-photos.md` — пайплайн фото на этапе 3.
-- `docs/planning/plan-thumbnail.md` — генерация thumbnail плана (нужна и для PDF сметы).
+- `docs/planning/open-questions.md` — сквозные нерешённые вопросы по платформе (например, версионирование API).
+- `docs/planning/sprint-1.md` — бэкенд-часть sprint 1: что именно должно быть готово на сервере к моменту, когда мобилка дойдёт до этапа 4.
+- `rms_mobile/docs/planning/sprint-1.md` — клиентская часть sprint 1.
+- `rms_mobile/docs/planning/data-model.md` — каноническая доменная схема.
+- `rms_mobile/docs/planning/stage-3-photos.md` — пайплайн фото на этапе 3.
+- `rms_mobile/docs/planning/plan-thumbnail.md` — генерация thumbnail плана (нужна и для PDF сметы).
 - `.cursor/rules/global-check-commands.mdc` — стандарт `just check`, поддерживается этим решением.
