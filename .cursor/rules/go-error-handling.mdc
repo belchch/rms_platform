@@ -1,0 +1,12 @@
+---
+description: Explicit Go error handling; no panic in production paths.
+alwaysApply: true
+---
+
+# Go — error handling
+
+- Always check errors explicitly with `if err != nil { return ..., err }`.
+- Never use `panic` in request-handling or business logic paths. `panic` is only acceptable in `main()` for unrecoverable startup failures.
+- Wrap errors with context using `fmt.Errorf("operation: %w", err)` so callers can inspect the chain.
+- Do not silently discard errors with `_`.
+- Return `error` as the last return value; never use a bool to signal failure when an error gives more information.

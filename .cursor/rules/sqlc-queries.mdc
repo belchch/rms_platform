@@ -1,0 +1,12 @@
+---
+description: All SQL lives in queries/ files; never build query strings dynamically.
+alwaysApply: true
+---
+
+# sqlc — query rules
+
+- All SQL queries must live in `.sql` files under `apps/api/queries/`.
+- Never concatenate or interpolate strings to build SQL at runtime. Use sqlc named parameters (`:name` or `$1` style) exclusively.
+- After adding or changing a query, run `just api-gen` to regenerate `internal/db/`.
+- Do not edit files inside `internal/db/` by hand — they are generated and will be overwritten.
+- Each query file should correspond to one domain entity (e.g. `queries/projects.sql`, `queries/photos.sql`).

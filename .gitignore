@@ -1,0 +1,28 @@
+# Go
+apps/api/bin/
+apps/api/tmp/
+
+# Node
+node_modules/
+apps/web/node_modules/
+packages/*/node_modules/
+apps/web/dist/
+apps/web/.quasar/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+.data/

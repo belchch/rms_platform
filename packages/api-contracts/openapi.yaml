@@ -1,0 +1,236 @@
+openapi: "3.1.0"
+info:
+  title: RMS Platform API
+  version: "0.1.0"
+  description: REST API для мобильного клиента и web-клиента RMS Platform
+
+servers:
+  - url: http://localhost:8080
+    description: Local dev
+
+tags:
+  - name: auth
+  - name: sync
+  - name: photos
+
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/auth/sign-in:
+    post:
+      operationId: signIn
+      tags: [auth]
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignInRequest"
+      responses:
+        "200":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [auth]
+      summary: Rotate access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/sync/pull:
+    get:
+      operationId: syncPull
+      tags: [sync]
+      summary: Pull delta changes from server
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Server cursor from previous pull (0 for first pull)
+      responses:
+        "200":
+          description: Delta changes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PullResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/sync/push:
+    post:
+      operationId: syncPush
+      tags: [sync]
+      summary: Push local changes to server
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushRequest"
+      responses:
+        "200":
+          description: New server cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/photos:
+    post:
+      operationId: uploadPhoto
+      tags: [photos]
+      summary: Upload a photo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Photo uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoUploadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+
+    PullResponse:
+      type: object
+      required: [cursor, changes]
+      properties:
+        cursor:
+          type: integer
+          format: int64
+        changes:
+          type: array
+          items: {}
+
+    PushRequest:
+      type: object
+      required: [operations]
+      properties:
+        operations:
+          type: array
+          items: {}
+
+    PushResponse:
+      type: object
+      required: [cursor]
+      properties:
+        cursor:
+          type: integer
+          format: int64
+
+    PhotoUploadResponse:
+      type: object
+      required: [id, remoteUrl]
+      properties:
+        id:
+          type: string
+        remoteUrl:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string

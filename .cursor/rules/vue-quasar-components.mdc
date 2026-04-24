@@ -1,0 +1,18 @@
+---
+description: Use Quasar built-in components; avoid custom re-implementations.
+alwaysApply: true
+---
+
+# Vue — Quasar standard components
+
+When building UI in `apps/web/`:
+
+- Prefer **Quasar built-ins** over custom implementations:
+  - Tables → `q-table` (not hand-rolled `<table>`)
+  - Forms → `q-form` + `q-input` + `q-btn`
+  - File upload → `q-uploader`
+  - Dialogs → `useQuasar().dialog(...)` or `q-dialog`
+  - Notifications → `useQuasar().notify(...)`
+  - Loading states → `q-spinner` or `q-inner-loading`
+- Do not use raw hex color literals. Use Quasar CSS variables (`$primary`, `$positive`, etc.) or utility classes (`text-primary`, `bg-grey-2`).
+- Layout: `q-layout` + `q-page-container` + `q-page` — do not invent custom wrappers for the top-level shell.

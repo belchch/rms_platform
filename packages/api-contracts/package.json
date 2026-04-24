@@ -1,0 +1,11 @@
+{
+  "name": "@rms/api-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "generate": "openapi-typescript openapi.yaml -o types.gen.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.0.0"
+  }
+}

@@ -1,0 +1,26 @@
+---
+description: Reject hacky fixes; require root cause, single source of truth, and explicit lifecycle
+alwaysApply: true
+---
+
+# No hacks (architecture)
+
+Hacks are **not acceptable** as a stopping point. If a fix matches the signals below, also propose or implement the **structural** follow-up (one source of truth, explicit sync, or documented framework constraint).
+
+## Hack signals (stop and redesign)
+
+- **Two sources of truth** for the same fact synchronized by ad-hoc `if / else` or priority chains at call sites.
+- **Symptom-only fixes** (UI/state "works") without stating the **invariant** that must hold.
+- **One-off guard flags** (`didInit`, `featuresLoaded`, …) without addressing *why* duplicate runs happen, unless the rule is **documented** and the guard is the agreed idempotent boundary.
+- **Fallback chains** ("try A, then B") that paper over **missing commits** or **stale state** instead of a single sync point.
+- **No test or manual invariant** — the expected post-condition is not stated anywhere.
+
+## What to do instead
+
+1. Name the **authoritative source** for the current feature (store, domain entity, DB row).
+2. Prefer **one write path** for all mutations of the same resource.
+3. If a framework quirk requires a guard, **comment the contract** in one place, not scattered magic booleans.
+
+## Temporary exceptions
+
+A minimal hotfix is allowed only with a **TODO** or issue reference and a **one-sentence** note on the proper fix. Default remains: fix the model/lifecycle, not only the symptom.

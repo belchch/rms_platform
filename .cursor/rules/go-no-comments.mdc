@@ -1,0 +1,16 @@
+---
+description: Go code must not contain obvious narrating comments.
+alwaysApply: true
+---
+
+# Go — no narrating comments
+
+When **writing or editing** Go in this project:
+
+- Do **not** add comments that just restate what the code does (`// connect to database`, `// return error`, `// increment counter`).
+- Rely on clear naming, small functions, and types instead.
+- Comments are allowed only for:
+  - non-obvious **intent** or **trade-off** (why, not what)
+  - documented **contracts** (e.g. concurrency invariants, retry semantics)
+  - `TODO`/`FIXME` with a reason
+- Do **not** remove existing comments unless the user asks.

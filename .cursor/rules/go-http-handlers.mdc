@@ -1,0 +1,33 @@
+---
+description: huma handler pattern — Input/Output structs, no naked http.ResponseWriter writes.
+alwaysApply: true
+---
+
+# Go — huma HTTP handlers
+
+All HTTP handlers use the huma v2 pattern:
+
+```go
+type FooInput struct {
+    Body struct {
+        Field string `json:"field"`
+    }
+}
+
+type FooOutput struct {
+    Body struct {
+        Result string `json:"result"`
+    }
+}
+
+func handleFoo(_ context.Context, input *FooInput) (*FooOutput, error) {
+    output := &FooOutput{}
+    output.Body.Result = "value"
+    return output, nil
+}
+```
+
+- Input and Output are **always separate named structs** — never anonymous or reused across endpoints.
+- Return `(*Output, error)` — never write directly to `http.ResponseWriter` inside a huma handler.
+- Register handlers via `huma.Register(api, operation, handlerFunc)` in the package-level `Register(api huma.API)` function.
+- Group handlers by domain in `internal/handler/<domain>/handler.go`.

@@ -1,0 +1,9 @@
+{
+  "name": "rms_platform",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "just dev",
+    "check": "just check"
+  }
+}
