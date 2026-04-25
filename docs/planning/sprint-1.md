@@ -152,6 +152,34 @@
 
 ---
 
+## 10. Этап 1 — done
+
+Зафиксированные решения (дата: апрель 2026):
+
+| Вопрос | Решение |
+|--------|---------|
+| Формат `PushOperation` | Плоский `{ clientOpId, op, entityType, entityId, clientUpdatedAt, payload }` |
+| ID сущности | Эхо клиентского UUID v7 — никакого серверного маппинга |
+| `clientOpId` vs `entityId` | Раздельные: `clientOpId` уникален на операцию, `entityId` — id сущности |
+| Ответ `/sync/push` | Partial-success 200: `{ cursor, applied: [clientOpId], conflicts: [{clientOpId, reason, serverVersion}], errors: [{clientOpId, reason, message}] }` |
+| Загрузка фото | Pre-signed PUT URL: удалён `POST /api/v1/photos` (multipart), добавлен `POST /api/v1/photos/upload-url` (JSON). Метаданные фото — через `/sync/push` с `entityType=photo` |
+| payload discriminator | `oneOf` по `entityType`: `ProjectPayload`, `PlanPayload`, `PhotoPayload` — типизированные TS-union'ы |
+| Tombstones в pull | `PullChange.deletedAt` (epoch-millis, nullable) |
+| Cursor в payload | Каждый `PullChange` несёт свой `syncCursor`; `PullResponse.cursor = max(changes.syncCursor)` |
+
+Снятые риски:
+- «Multipart в huma неожиданно окажется неудобен» → **снят**: мы выбрали pre-signed PUT, multipart убран из контракта до начала любой реализации.
+- «Контракт операций меняется после того, как клиент написал DTO» → **снят**: контракт зафиксирован в `openapi.yaml` + `types.gen.ts` до старта этапа 4 мобилки.
+
+Что доставлено:
+- `packages/api-contracts/openapi.yaml` — полный контракт с новыми схемами и путями.
+- `packages/api-contracts/types.gen.ts` — сгенерированные TS-типы (source-of-truth для мобилки).
+- `apps/api/internal/sync/types.go` — Go-типы, разделяемые хендлерами.
+- `apps/api/internal/handler/sync/handler.go` — стабы под новый контракт (`PullChange[]`, `PushOperation[]`, partial-success ответ).
+- `apps/api/internal/handler/photos/handler.go` — стаб `POST /api/v1/photos/upload-url`.
+
+---
+
 ## 9. Связанные документы
 
 - [`rms_mobile/docs/planning/sprint-1.md`](../../../AndroidStudioProjects/rms_mobile/docs/planning/sprint-1.md) — клиентская часть того же sprint 1; этапы 4 и 5 мобилки определяют скоуп этого документа.

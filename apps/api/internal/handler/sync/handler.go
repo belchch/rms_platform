@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
 type PullInput struct {
@@ -12,20 +14,23 @@ type PullInput struct {
 
 type PullOutput struct {
 	Body struct {
-		Cursor  int64         `json:"cursor"`
-		Changes []interface{} `json:"changes"`
+		Cursor  int64                  `json:"cursor"`
+		Changes []synctypes.PullChange `json:"changes"`
 	}
 }
 
 type PushInput struct {
 	Body struct {
-		Operations []interface{} `json:"operations"`
+		Operations []synctypes.PushOperation `json:"operations"`
 	}
 }
 
 type PushOutput struct {
 	Body struct {
-		Cursor int64 `json:"cursor"`
+		Cursor    int64                    `json:"cursor"`
+		Applied   []string                 `json:"applied"`
+		Conflicts []synctypes.PushConflict `json:"conflicts"`
+		Errors    []synctypes.PushError    `json:"errors"`
 	}
 }
 
@@ -47,15 +52,18 @@ func Register(api huma.API) {
 	}, push)
 }
 
-func pull(_ context.Context, input *PullInput) (*PullOutput, error) {
+func pull(_ context.Context, _ *PullInput) (*PullOutput, error) {
 	output := &PullOutput{}
 	output.Body.Cursor = 0
-	output.Body.Changes = []interface{}{}
+	output.Body.Changes = []synctypes.PullChange{}
 	return output, nil
 }
 
-func push(_ context.Context, input *PushInput) (*PushOutput, error) {
+func push(_ context.Context, _ *PushInput) (*PushOutput, error) {
 	output := &PushOutput{}
 	output.Body.Cursor = 0
+	output.Body.Applied = []string{}
+	output.Body.Conflicts = []synctypes.PushConflict{}
+	output.Body.Errors = []synctypes.PushError{}
 	return output, nil
 }

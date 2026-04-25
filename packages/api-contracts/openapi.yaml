@@ -107,7 +107,7 @@ paths:
               $ref: "#/components/schemas/PushRequest"
       responses:
         "200":
-          description: New server cursor
+          description: Partial-success push result
           content:
             application/json:
               schema:
@@ -115,30 +115,26 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/photos:
+  /api/v1/photos/upload-url:
     post:
-      operationId: uploadPhoto
+      operationId: getPhotoUploadUrl
       tags: [photos]
-      summary: Upload a photo
+      summary: Get pre-signed PUT URL for photo upload
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
+              $ref: "#/components/schemas/PhotoUploadUrlRequest"
       responses:
-        "201":
-          description: Photo uploaded
+        "200":
+          description: Pre-signed upload URL
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PhotoUploadResponse"
+                $ref: "#/components/schemas/PhotoUploadUrlResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -192,6 +188,157 @@ components:
         refreshToken:
           type: string
 
+    EntityType:
+      type: string
+      enum: [project, plan, photo]
+
+    OpType:
+      type: string
+      enum: [create, update, delete]
+
+    ProjectPayload:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    PlanPayload:
+      type: object
+      required: [projectId, name]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    PhotoPayload:
+      type: object
+      required: [planId, contentType]
+      properties:
+        planId:
+          type: string
+          format: uuid
+        contentType:
+          type: string
+
+    EntitySnapshot:
+      type: object
+      required: [entityType, entityId, payload]
+      properties:
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        entityId:
+          type: string
+          format: uuid
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/ProjectPayload"
+            - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/PhotoPayload"
+          discriminator:
+            propertyName: entityType
+            mapping:
+              project: "#/components/schemas/ProjectPayload"
+              plan: "#/components/schemas/PlanPayload"
+              photo: "#/components/schemas/PhotoPayload"
+
+    PushOperation:
+      type: object
+      required: [clientOpId, op, entityType, entityId, clientUpdatedAt, payload]
+      properties:
+        clientOpId:
+          type: string
+          format: uuid
+        op:
+          $ref: "#/components/schemas/OpType"
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        entityId:
+          type: string
+          format: uuid
+        clientUpdatedAt:
+          type: integer
+          format: int64
+          description: Client-side timestamp in epoch milliseconds
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/ProjectPayload"
+            - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/PhotoPayload"
+          discriminator:
+            propertyName: entityType
+            mapping:
+              project: "#/components/schemas/ProjectPayload"
+              plan: "#/components/schemas/PlanPayload"
+              photo: "#/components/schemas/PhotoPayload"
+
+    PullChange:
+      type: object
+      required: [entityType, entityId, payload, updatedAt, syncCursor]
+      properties:
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        entityId:
+          type: string
+          format: uuid
+        payload:
+          oneOf:
+            - $ref: "#/components/schemas/ProjectPayload"
+            - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/PhotoPayload"
+          discriminator:
+            propertyName: entityType
+            mapping:
+              project: "#/components/schemas/ProjectPayload"
+              plan: "#/components/schemas/PlanPayload"
+              photo: "#/components/schemas/PhotoPayload"
+        updatedAt:
+          type: integer
+          format: int64
+          description: Server-side updated_at in epoch milliseconds
+        syncCursor:
+          type: integer
+          format: int64
+        deletedAt:
+          type: integer
+          format: int64
+          nullable: true
+          description: Tombstone marker in epoch milliseconds; null means not deleted
+
+    PushConflict:
+      type: object
+      required: [clientOpId, reason, serverVersion]
+      properties:
+        clientOpId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [stale, notFound, forbidden]
+        serverVersion:
+          $ref: "#/components/schemas/EntitySnapshot"
+
+    PushError:
+      type: object
+      required: [clientOpId, reason, message]
+      properties:
+        clientOpId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          enum: [validation, unknown]
+        message:
+          type: string
+
     PullResponse:
       type: object
       required: [cursor, changes]
@@ -201,7 +348,8 @@ components:
           format: int64
         changes:
           type: array
-          items: {}
+          items:
+            $ref: "#/components/schemas/PullChange"
 
     PushRequest:
       type: object
@@ -209,24 +357,58 @@ components:
       properties:
         operations:
           type: array
-          items: {}
+          items:
+            $ref: "#/components/schemas/PushOperation"
 
     PushResponse:
       type: object
-      required: [cursor]
+      required: [cursor, applied, conflicts, errors]
       properties:
         cursor:
           type: integer
           format: int64
+        applied:
+          type: array
+          items:
+            type: string
+            format: uuid
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PushConflict"
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PushError"
 
-    PhotoUploadResponse:
+    PhotoUploadUrlRequest:
       type: object
-      required: [id, remoteUrl]
+      required: [photoId, contentType]
       properties:
-        id:
+        photoId:
           type: string
-        remoteUrl:
+          format: uuid
+        contentType:
           type: string
+
+    PhotoUploadUrlResponse:
+      type: object
+      required: [uploadUrl, method, headers, expiresAt]
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+        method:
+          type: string
+          enum: [PUT]
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        expiresAt:
+          type: integer
+          format: int64
+          description: Expiry time in epoch milliseconds
 
     ErrorResponse:
       type: object
