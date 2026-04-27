@@ -190,7 +190,7 @@ components:
 
     EntityType:
       type: string
-      enum: [project, plan, photo]
+      enum: [project, plan, room, wall, photo]
 
     OpType:
       type: string
@@ -198,13 +198,20 @@ components:
 
     ProjectPayload:
       type: object
-      required: [name]
+      required: [name, isArchived, isFavourite]
       properties:
         name:
           type: string
+        address:
+          type: string
+          nullable: true
         description:
           type: string
           nullable: true
+        isArchived:
+          type: boolean
+        isFavourite:
+          type: boolean
 
     PlanPayload:
       type: object
@@ -215,19 +222,52 @@ components:
           format: uuid
         name:
           type: string
-        description:
-          type: string
+        payloadJson:
           nullable: true
+          description: Arbitrary geometry JSON for plan canvas
 
-    PhotoPayload:
+    RoomPayload:
       type: object
-      required: [planId, contentType]
+      required: [planId]
       properties:
         planId:
           type: string
           format: uuid
+        name:
+          type: string
+          nullable: true
+
+    WallPayload:
+      type: object
+      required: [roomId]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+
+    PhotoPayload:
+      type: object
+      required: [parentType, parentId, contentType]
+      properties:
+        parentType:
+          type: string
+          enum: [project, room, wall]
+        parentId:
+          type: string
+          format: uuid
         contentType:
           type: string
+        name:
+          type: string
+          nullable: true
+        caption:
+          type: string
+          nullable: true
+        takenAt:
+          type: integer
+          format: int64
+          nullable: true
+          description: Client-side capture timestamp in epoch milliseconds
 
     EntitySnapshot:
       type: object
@@ -242,12 +282,16 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ProjectPayload"
             - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/RoomPayload"
+            - $ref: "#/components/schemas/WallPayload"
             - $ref: "#/components/schemas/PhotoPayload"
           discriminator:
             propertyName: entityType
             mapping:
               project: "#/components/schemas/ProjectPayload"
               plan: "#/components/schemas/PlanPayload"
+              room: "#/components/schemas/RoomPayload"
+              wall: "#/components/schemas/WallPayload"
               photo: "#/components/schemas/PhotoPayload"
 
     PushOperation:
@@ -272,12 +316,16 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ProjectPayload"
             - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/RoomPayload"
+            - $ref: "#/components/schemas/WallPayload"
             - $ref: "#/components/schemas/PhotoPayload"
           discriminator:
             propertyName: entityType
             mapping:
               project: "#/components/schemas/ProjectPayload"
               plan: "#/components/schemas/PlanPayload"
+              room: "#/components/schemas/RoomPayload"
+              wall: "#/components/schemas/WallPayload"
               photo: "#/components/schemas/PhotoPayload"
 
     PullChange:
@@ -293,12 +341,16 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ProjectPayload"
             - $ref: "#/components/schemas/PlanPayload"
+            - $ref: "#/components/schemas/RoomPayload"
+            - $ref: "#/components/schemas/WallPayload"
             - $ref: "#/components/schemas/PhotoPayload"
           discriminator:
             propertyName: entityType
             mapping:
               project: "#/components/schemas/ProjectPayload"
               plan: "#/components/schemas/PlanPayload"
+              room: "#/components/schemas/RoomPayload"
+              wall: "#/components/schemas/WallPayload"
               photo: "#/components/schemas/PhotoPayload"
         updatedAt:
           type: integer
@@ -322,7 +374,7 @@ components:
           format: uuid
         reason:
           type: string
-          enum: [stale, notFound, forbidden]
+          enum: [stale]
         serverVersion:
           $ref: "#/components/schemas/EntitySnapshot"
 
@@ -335,7 +387,7 @@ components:
           format: uuid
         reason:
           type: string
-          enum: [validation, unknown]
+          enum: [validation, notFound, forbidden, unknown]
         message:
           type: string
 

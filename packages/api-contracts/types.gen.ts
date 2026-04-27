@@ -127,12 +127,15 @@ export interface components {
             refreshToken: string;
         };
         /** @enum {string} */
-        EntityType: "project" | "plan" | "photo";
+        EntityType: "project" | "plan" | "room" | "wall" | "photo";
         /** @enum {string} */
         OpType: "create" | "update" | "delete";
         ProjectPayload: {
             name: string;
+            address?: string | null;
             description?: string | null;
+            isArchived: boolean;
+            isFavourite: boolean;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -143,17 +146,46 @@ export interface components {
             /** Format: uuid */
             projectId: string;
             name: string;
-            description?: string | null;
+            /** @description Arbitrary geometry JSON for plan canvas */
+            payloadJson?: unknown;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             entityType: "plan";
         };
-        PhotoPayload: {
+        RoomPayload: {
             /** Format: uuid */
             planId: string;
+            name?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entityType: "room";
+        };
+        WallPayload: {
+            /** Format: uuid */
+            roomId: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entityType: "wall";
+        };
+        PhotoPayload: {
+            /** @enum {string} */
+            parentType: "project" | "room" | "wall";
+            /** Format: uuid */
+            parentId: string;
             contentType: string;
+            name?: string | null;
+            caption?: string | null;
+            /**
+             * Format: int64
+             * @description Client-side capture timestamp in epoch milliseconds
+             */
+            takenAt?: number | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -164,7 +196,7 @@ export interface components {
             entityType: components["schemas"]["EntityType"];
             /** Format: uuid */
             entityId: string;
-            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["PhotoPayload"];
+            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["RoomPayload"] | components["schemas"]["WallPayload"] | components["schemas"]["PhotoPayload"];
         };
         PushOperation: {
             /** Format: uuid */
@@ -178,13 +210,13 @@ export interface components {
              * @description Client-side timestamp in epoch milliseconds
              */
             clientUpdatedAt: number;
-            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["PhotoPayload"];
+            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["RoomPayload"] | components["schemas"]["WallPayload"] | components["schemas"]["PhotoPayload"];
         };
         PullChange: {
             entityType: components["schemas"]["EntityType"];
             /** Format: uuid */
             entityId: string;
-            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["PhotoPayload"];
+            payload: components["schemas"]["ProjectPayload"] | components["schemas"]["PlanPayload"] | components["schemas"]["RoomPayload"] | components["schemas"]["WallPayload"] | components["schemas"]["PhotoPayload"];
             /**
              * Format: int64
              * @description Server-side updated_at in epoch milliseconds
@@ -202,14 +234,14 @@ export interface components {
             /** Format: uuid */
             clientOpId: string;
             /** @enum {string} */
-            reason: "stale" | "notFound" | "forbidden";
+            reason: "stale";
             serverVersion: components["schemas"]["EntitySnapshot"];
         };
         PushError: {
             /** Format: uuid */
             clientOpId: string;
             /** @enum {string} */
-            reason: "validation" | "unknown";
+            reason: "validation" | "notFound" | "forbidden" | "unknown";
             message: string;
         };
         PullResponse: {

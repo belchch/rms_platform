@@ -152,9 +152,11 @@
 
 ---
 
-## 10. Этап 1 — done
+## 10. Этап 1 — done, переоткрыт под канон data-model.md (апрель 2026)
 
-Зафиксированные решения (дата: апрель 2026):
+Этап 1 изначально был закрыт с минимальным контрактом (`EntityType: [project, plan, photo]`, `PhotoPayload {planId}`). Переоткрыт, чтобы привести контракт в соответствие с каноном [`data-model.md`](../../../AndroidStudioProjects/rms_mobile/docs/planning/data-model.md) и [`hybrid-plan-model.md`](../knowledge/hybrid-plan-model.md).
+
+### Зафиксированные решения
 
 | Вопрос | Решение |
 |--------|---------|
@@ -162,21 +164,26 @@
 | ID сущности | Эхо клиентского UUID v7 — никакого серверного маппинга |
 | `clientOpId` vs `entityId` | Раздельные: `clientOpId` уникален на операцию, `entityId` — id сущности |
 | Ответ `/sync/push` | Partial-success 200: `{ cursor, applied: [clientOpId], conflicts: [{clientOpId, reason, serverVersion}], errors: [{clientOpId, reason, message}] }` |
-| Загрузка фото | Pre-signed PUT URL: удалён `POST /api/v1/photos` (multipart), добавлен `POST /api/v1/photos/upload-url` (JSON). Метаданные фото — через `/sync/push` с `entityType=photo` |
-| payload discriminator | `oneOf` по `entityType`: `ProjectPayload`, `PlanPayload`, `PhotoPayload` — типизированные TS-union'ы |
+| Загрузка фото | Pre-signed PUT URL: `POST /api/v1/photos/upload-url` (JSON). Метаданные фото — через `/sync/push` с `entityType=photo` |
+| `EntityType` | `[project, plan, room, wall, photo]` — добавлены `room` и `wall` как first-class sync-сущности |
+| `ProjectPayload` | `name` (req), `address?`, `description?`, `isArchived` (req), `isFavourite` (req). Без `coverPhotoId` |
+| `PlanPayload` | `projectId` (req), `name` (req), `payloadJson?` — геометрия в JSONB |
+| `RoomPayload` (новая) | `planId` (req), `name?` — метаданные комнаты |
+| `WallPayload` (новая) | `roomId` (req) |
+| `PhotoPayload` | Polymorphic: `parentType: [project, room, wall]` + `parentId` (req), `contentType` (req), `name?`, `caption?`, `takenAt?` (epoch-ms) |
+| payload discriminator | `oneOf` по `entityType`: пять payload-типов |
 | Tombstones в pull | `PullChange.deletedAt` (epoch-millis, nullable) |
 | Cursor в payload | Каждый `PullChange` несёт свой `syncCursor`; `PullResponse.cursor = max(changes.syncCursor)` |
+| `workspace_id` в JWT | Session scope: один пользователь = один workspace в sprint 1. При появлении shared workspace — `/auth/switch-workspace` |
 
-Снятые риски:
-- «Multipart в huma неожиданно окажется неудобен» → **снят**: мы выбрали pre-signed PUT, multipart убран из контракта до начала любой реализации.
-- «Контракт операций меняется после того, как клиент написал DTO» → **снят**: контракт зафиксирован в `openapi.yaml` + `types.gen.ts` до старта этапа 4 мобилки.
+### Снятые риски
+- «Multipart в huma неожиданно окажется неудобен» → **снят**: pre-signed PUT, multipart убран.
+- «Контракт операций меняется после того, как клиент написал DTO» → **снят**: контракт зафиксирован до старта этапа 4 мобилки.
 
-Что доставлено:
-- `packages/api-contracts/openapi.yaml` — полный контракт с новыми схемами и путями.
-- `packages/api-contracts/types.gen.ts` — сгенерированные TS-типы (source-of-truth для мобилки).
-- `apps/api/internal/sync/types.go` — Go-типы, разделяемые хендлерами.
-- `apps/api/internal/handler/sync/handler.go` — стабы под новый контракт (`PullChange[]`, `PushOperation[]`, partial-success ответ).
-- `apps/api/internal/handler/photos/handler.go` — стаб `POST /api/v1/photos/upload-url`.
+### Что доставлено
+- `packages/api-contracts/openapi.yaml` — полный контракт: пять payload-типов, polymorphic `PhotoPayload`, обновлённый `oneOf`.
+- `packages/api-contracts/types.gen.ts` — сгенерированные TS-типы.
+- `apps/api/internal/sync/types.go` — Go-типы: `RoomPayload`, `WallPayload`, расширенные `ProjectPayload`/`PlanPayload`/`PhotoPayload`.
 
 ---
 

@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/config"
+	"github.com/belchch/rms_platform/api/internal/db"
 	authhandler "github.com/belchch/rms_platform/api/internal/handler/auth"
 	photoshandler "github.com/belchch/rms_platform/api/internal/handler/photos"
 	synchandler "github.com/belchch/rms_platform/api/internal/handler/sync"
@@ -49,11 +50,13 @@ func main() {
 		fmt.Fprint(w, `{"status":"ok"}`)
 	})
 
+	queries := db.New(pool)
+
 	api := humachi.New(router, huma.DefaultConfig("RMS Platform API", "0.1.0"))
 
-	authhandler.Register(api)
-	synchandler.Register(api)
-	photoshandler.Register(api)
+	authhandler.Register(api, queries, pool)
+	synchandler.Register(api, queries, pool)
+	photoshandler.Register(api, queries, pool)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("addr", addr).Msg("starting server")

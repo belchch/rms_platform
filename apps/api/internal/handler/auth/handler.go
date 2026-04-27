@@ -4,6 +4,9 @@ import (
 	"context"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/belchch/rms_platform/api/internal/db"
 )
 
 type SignInInput struct {
@@ -33,7 +36,7 @@ type RefreshOutput struct {
 	}
 }
 
-func Register(api huma.API) {
+func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
 	huma.Register(api, huma.Operation{
 		OperationID: "sign-in",
 		Method:      "POST",

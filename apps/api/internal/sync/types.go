@@ -7,6 +7,8 @@ type EntityType string
 const (
 	EntityTypeProject EntityType = "project"
 	EntityTypePlan    EntityType = "plan"
+	EntityTypeRoom    EntityType = "room"
+	EntityTypeWall    EntityType = "wall"
 	EntityTypePhoto   EntityType = "photo"
 )
 
@@ -20,18 +22,34 @@ const (
 
 type ProjectPayload struct {
 	Name        string  `json:"name"`
+	Address     *string `json:"address,omitempty"`
 	Description *string `json:"description,omitempty"`
+	IsArchived  bool    `json:"isArchived"`
+	IsFavourite bool    `json:"isFavourite"`
 }
 
 type PlanPayload struct {
-	ProjectID   string  `json:"projectId"`
-	Name        string  `json:"name"`
-	Description *string `json:"description,omitempty"`
+	ProjectID   string          `json:"projectId"`
+	Name        string          `json:"name"`
+	PayloadJSON json.RawMessage `json:"payloadJson,omitempty"`
+}
+
+type RoomPayload struct {
+	PlanID string  `json:"planId"`
+	Name   *string `json:"name,omitempty"`
+}
+
+type WallPayload struct {
+	RoomID string `json:"roomId"`
 }
 
 type PhotoPayload struct {
-	PlanID      string `json:"planId"`
-	ContentType string `json:"contentType"`
+	ParentType  EntityType `json:"parentType"`
+	ParentID    string     `json:"parentId"`
+	ContentType string     `json:"contentType"`
+	Name        *string    `json:"name,omitempty"`
+	Caption     *string    `json:"caption,omitempty"`
+	TakenAt     *int64     `json:"takenAt,omitempty"`
 }
 
 type EntitySnapshot struct {
