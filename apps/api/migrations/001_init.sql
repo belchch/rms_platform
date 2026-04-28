@@ -147,6 +147,21 @@ CREATE INDEX idx_photos_sync_cursor ON photos(sync_cursor);
 CREATE INDEX idx_photoables_owner ON photoables(owner_type, owner_id);
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 
+INSERT INTO users (id, name, email, password_hash)
+VALUES (
+    'a0000000-0000-4000-8000-000000000001',
+    'Demo',
+    'demo@rms.local',
+    '$2a$10$PDj6be7DFXy8QNaixujvouQZIyvyMMODOlC3r3qArkOWU83E990Ti'
+);
+
+INSERT INTO workspaces (id, name, owner_id)
+VALUES (
+    'b0000000-0000-4000-8000-000000000001',
+    'Demo',
+    'a0000000-0000-4000-8000-000000000001'
+);
+
 -- +goose StatementEnd
 
 -- +goose Down
