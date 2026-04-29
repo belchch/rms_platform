@@ -1,0 +1,118 @@
+---
+description: Архитектурная карта RMS — топология, слои, границы, инварианты sync/auth/photo.
+alwaysApply: true
+---
+
+# Архитектура RMS
+
+Этот файл существует, чтобы при генерации кода **не терялась общая структура**: где какой слой, кто кому подчинён, какие инварианты не обсуждаются. Если правка нарушает что-то из перечисленного — сначала перепроверь, что задача действительно требует менять архитектуру, и обоснуй это в ответе пользователю.
+
+## 1. Топология монорепо
+
+```
+apps/api/                    Go-бэкенд (chi + huma v2 + sqlc + pgx + goose)
+apps/web/                    Quasar SPA (Vue 3 + Pinia + openapi-typescript)
+packages/api-contracts/      OpenAPI как источник истины + сгенерированные TS-типы
+docs/knowledge/              закреплённые архитектурные решения (читать перед правкой)
+docs/planning/               скоуп спринтов и история выбора стека
+```
+
+Дополнительный клиент: мобилка `rms_mobile/` (отдельный репо) — потребитель того же `openapi.yaml`. Поэтому **любой break OpenAPI = break для двух клиентов**.
+
+## 2. Слои `apps/api`
+
+| Каталог | Что лежит | Что НЕ лежит |
+|---|---|---|
+| `cmd/api/` | `main.go`: wiring (config → db → sync → middleware → handler.Register), запуск сервера | бизнес-логика |
+| `internal/config/` | env-конфиг, единственный source of truth для `os.Getenv` | значения, прибитые к коду |
+| `internal/db/` | **сгенерировано sqlc** | ручные правки запрещены |
+| `internal/sync/` | DTO sync-протокола (`PushOperation`, `PullChange`, payload-типы), общие типы для handler'а sync | SQL, http, бизнес-логика других доменов |
+| `internal/jwtutil/` | issue/parse JWT, claims-структура | проверка прав, чтение токена из `*http.Request` |
+| `internal/middleware/` | chi-middleware: auth (вытаскивает `workspaceId` в context), logging | huma-обёртки |
+| `internal/handler/<domain>/` | huma-handlers одного домена + `Register(api huma.API)` | inline-SQL, прямой `pgx.Conn`, бизнес-логика других доменов |
+| `queries/<entity>.sql` | sqlc-запросы по одной сущности | мульти-доменные SELECT через JOIN ради удобства |
+| `migrations/001_init.sql` | вся схема (sprint 1 — один файл) | новые `002_*.sql` до релиза |
+
+Правило слоёв: handler → (sync-DTO) → sqlc-Queries. Handler никогда не зовёт `pgx` напрямую и не строит SQL.
+
+## 3. Слои `apps/web`
+
+| Каталог | Что лежит |
+|---|---|
+| `src/api/` | обёртки над сгенерированным клиентом из `packages/api-contracts` |
+| `src/stores/` | Pinia-сторы — единственное место, где живёт состояние, шаренное между страницами |
+| `src/pages/` | страницы маршрутизатора |
+| `src/components/` | переиспользуемые компоненты, тонкие |
+| `src/layouts/` | `q-layout`-обёртки |
+| `src/router/`, `src/boot/`, `src/css/` | стандарт Quasar |
+
+Запросы к API идут только через `src/api/` → сгенерированный клиент. Минуя обёртку — баг.
+
+## 4. Инварианты sync-протокола
+
+Полное описание: `docs/knowledge/sync-protocol.md`. Здесь — то, что обязательно держать в голове при генерации:
+
+- **`POST /sync/push` всегда отвечает 200** с телом `{ cursor, applied[], conflicts[], errors[] }`. 4xx — только транспортные ошибки (битый JSON, нет auth). Конфликт LWW — это `conflicts[]`, не 409.
+- **LWW-сравнение**: `incoming.clientUpdatedAt > db.updated_at`. Сравнения с `time.Now()` сервера — нарушение.
+- **`entityId`** — клиентский UUID v7, эхо. Сервер не генерирует ID для синк-сущностей.
+- **`clientOpId` ≠ `entityId`**. `clientOpId` уникален на операцию (одну сущность можно править N раз — N разных `clientOpId`), `entityId` — id сущности.
+- **`sync_cursor`** — Postgres SEQUENCE + триггер. Не приложенческий счётчик, не epoch.
+- **delete = soft**: `SET deleted_at = now()`, строка остаётся, `sync_cursor` бампается триггером.
+- **Pull отдаёт tombstones**: `WHERE sync_cursor > $since AND workspace_id = $1` (без фильтра `deleted_at IS NULL`).
+- **Workspace-фильтр** — обязателен в каждом sync-SELECT.
+
+## 5. Гибридная модель Plan
+
+Полное описание: `docs/knowledge/hybrid-plan-model.md` и правило `hybrid-plan-model.mdc`. Архитектурно:
+
+- `plan`, `room`, `wall` — **три независимых sync-агрегата** в `/sync/push` и `/sync/pull`. Каждый со своим `id`, `updated_at`, `sync_cursor`, `deleted_at`.
+- `Plan.payloadJson` (JSONB) — геометрия (углы, длины, проёмы, топология). Атомарный документ под LWW.
+- `rooms.name`, `walls.material` живут **в реляционных таблицах**, не в `payloadJson`.
+- Склейка `plan + rooms + walls` в единый объект — **только на клиенте**. Сервер не возвращает «полный план».
+
+Не нормализуй геометрию в реляционные таблицы. Не дублируй имена комнат в `payloadJson`.
+
+## 6. Auth
+
+- Access JWT (15 мин) + refresh (30 дней). Refresh хранится в таблице `refresh_tokens` как хэш.
+- `workspaceId` зашит в access-claims. Middleware вытаскивает его в `context.Context` через ключ-тип. Handler читает из контекста — **никогда** не парсит токен сам и **никогда** не берёт `workspaceId` из тела/path/query.
+- `/auth/sign-in` и `/auth/refresh` возвращают одинаковую структуру `{ accessToken, refreshToken }`. Поля `expiresIn` нет — TTL читается из claim `exp`.
+
+## 7. Photo upload
+
+- **Pre-signed PUT, 3 шага**:
+  1. `POST /photos/upload-url` (JSON `{ photoId, contentType }`) → `{ uploadUrl, method, headers, expiresAt }`.
+  2. `PUT <uploadUrl>` напрямую в S3/MinIO с указанными headers.
+  3. `POST /sync/push` с `entityType=photo`, `entityId=<тот же photoId>`, `PhotoPayload`.
+- API-сервер **не парсит multipart** для фото. Это намеренно — pre-signed PUT масштабируется отдельно от API.
+- `photoId` задаёт клиент на шаге 1.
+- `PhotoPayload` polymorphic: `parentType: "project" | "room" | "wall"` + `parentId`.
+
+## 8. Codegen-граф
+
+```
+migrations/001_init.sql ──┐
+                          ├─► apps/api/internal/db/*.go     (sqlc generate, just api-gen)
+queries/*.sql ────────────┘
+
+packages/api-contracts/openapi.yaml ─► packages/api-contracts/types.gen.ts (openapi-typescript, just api-gen)
+                                    └► (вручную) apps/api/internal/sync/types.go
+```
+
+Ломать генерацию запрещено. Если меняешь источник — обнови потребителей в том же коммите.
+
+## 9. Что НЕ делать (топ-частых ошибок генератора)
+
+- Серверная генерация ID (`uuid.New()`) для project/plan/room/wall/photo.
+- Сравнение версий через `time.Now()` сервера вместо `clientUpdatedAt`.
+- Возврат 409/422 на конфликт push-а.
+- `DELETE FROM` для синк-сущности.
+- Создание нового файла миграции вместо правки `001_init.sql`.
+- Ручная правка `internal/db/*.go` или `packages/api-contracts/types.gen.ts`.
+- `workspaceId` из request body / path / query.
+- Метаданные комнаты в `Plan.payloadJson`.
+- Геометрия в реляционных таблицах.
+- Multipart endpoint для загрузки фото.
+- Прямой `fetch('/api/v1/...')` или ручной TS-интерфейс ответа в `apps/web/`.
+- Inline-SQL в Go-handler без файла в `apps/api/queries/`.
+- Прямая запись в `http.ResponseWriter` внутри huma-handler.

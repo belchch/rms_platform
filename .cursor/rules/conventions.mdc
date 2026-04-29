@@ -1,0 +1,81 @@
+---
+description: Сквозные конвенции RMS — ID, время, codegen, источники истины, just-команды.
+alwaysApply: true
+---
+
+# Конвенции RMS
+
+Эти соглашения нельзя вывести из общих best practices — они зафиксированы в `docs/knowledge/sync-protocol.md`, `docs/planning/sprint-1.md`, `docs/planning/backend-stack-discussion.md`. Узкие правила (`huma`, `sqlc-queries`, `goose-dev-migrations`, `hybrid-plan-model`, `vue-quasar-components`, `no-hacks`) дополняют этот файл — не дублируй их.
+
+## ID
+
+- ID для `project | plan | room | wall | photo` генерирует **клиент** (UUID v7). Сервер только эхо. Никаких `uuid.New()`, `gen_random_uuid()`, `RETURNING id` для этих сущностей.
+- Колонки `id` — `TEXT PRIMARY KEY`, не `UUID`. Это под клиентский UUID v7.
+- Исключение: `users`, `refresh_tokens`, `workspaces` — серверные, ID любые.
+
+## Время
+
+- API ↔ клиент: всегда `int64` epoch-millis. Поля: `clientUpdatedAt`, `updatedAt`, `deletedAt`, `takenAt`, `expiresAt`. ISO-строки в JSON-контракте — баг.
+- Внутри Postgres: `TIMESTAMPTZ`. Маппинг — на границе handler/db.
+- LWW и фильтры курсора **никогда** не используют `time.Now()` сервера — только значения, пришедшие из тела запроса.
+
+## Soft-delete
+
+- Удаление синхронизируемых сущностей — `UPDATE … SET deleted_at = now()`. Никогда `DELETE FROM`.
+- Pull отдаёт строки с `deleted_at IS NOT NULL` как обычные изменения (tombstones). Фильтр `WHERE deleted_at IS NULL` в pull-запросах — баг.
+
+## `sync_cursor`
+
+- Источник — единственный Postgres `SEQUENCE` `sync_cursor_seq`, общий для всех sync-таблиц.
+- Бамп только через триггер `BEFORE INSERT OR UPDATE`. Не писать `nextval` из приложения.
+- Пагинация дельты — **только** по `sync_cursor > $since`, не по `updated_at`.
+
+## Workspace
+
+- `workspaceId` — всегда из JWT-claims (`workspaceId`), доставать через middleware из `context.Context`. Из тела/path/query — баг (sprint 1: один user = один workspace, после shared-workspaces middleware всё равно остаётся точкой авторизации).
+- В каждый sync-запрос (`SELECT … FROM <entity>`) обязателен фильтр `workspace_id = $N`. Пропуск — утечка данных.
+
+## Источники истины (single source of truth)
+
+| Сфера | Источник | Что генерируется/выводится |
+|---|---|---|
+| Схема БД | `apps/api/migrations/001_init.sql` | `apps/api/internal/db/*.go` через sqlc |
+| SQL-запросы | `apps/api/queries/*.sql` | `apps/api/internal/db/*.go` через sqlc |
+| API-контракт | `packages/api-contracts/openapi.yaml` | `packages/api-contracts/types.gen.ts` через openapi-typescript |
+| DTO sync-протокола (Go) | `apps/api/internal/sync/types.go` | вручную синхронизирован с openapi.yaml |
+| Решения по sync | `docs/knowledge/sync-protocol.md` | OpenAPI + Go-типы должны соответствовать |
+| Гибридная модель Plan | `docs/knowledge/hybrid-plan-model.md` | схема + правила |
+
+Изменение источника без обновления производных артефактов — баг.
+
+## Codegen-обязательства
+
+- После правок `apps/api/queries/*.sql` или `apps/api/sqlc.yaml` — `just api-gen`.
+- После правок `packages/api-contracts/openapi.yaml` — `just api-gen` (регенерит TS) **и** ручная синхронизация `apps/api/internal/sync/types.go`.
+- После правок `apps/api/migrations/001_init.sql` — `just db-reset`.
+- Файлы `apps/api/internal/db/*.go` и `packages/api-contracts/types.gen.ts` — **сгенерированы**. Ручные правки будут затёрты.
+
+## Команды
+
+- `just check` — единственный канон проверки (`go build` + `go vet` + `pnpm vitest`). Перед PR — обязательно.
+- `just dev` — поднимает всё (compose + air + pnpm dev).
+- `just api-gen` / `just db-reset` / `just migrate` — см. выше.
+
+## Web ↔ API
+
+- Запросы к API только через сгенерированный клиент из `packages/api-contracts`. Прямой `axios.get('/api/v1/...')`, `fetch('/api/v1/...')`, ручные `interface ProjectDto` в `apps/web/src/` — баг.
+- Web и API лежат в одном монорепо именно для атомарных рефакторингов контракта; пользоваться этим.
+
+## Фото
+
+- Загрузка — pre-signed PUT в три шага (`POST /photos/upload-url` → `PUT <s3>` → `POST /sync/push` с `PhotoPayload`). Multipart через API-сервер — нарушение контракта.
+- `photoId` задаёт клиент (UUID v7) на шаге 1, не сервер.
+
+## Что НЕ писать в этом проекте
+
+- `ALTER TABLE` в новом файле миграции (см. `goose-dev-migrations`).
+- Inline-SQL через `db.Query("SELECT … " + var)` (см. `sqlc-queries`).
+- Прямую запись в `http.ResponseWriter` из huma-handler'а (см. `go-http-handlers`).
+- `panic` в request-path (см. `go-error-handling`).
+- Кастомные обёртки над `<table>`, `<form>`, `<dialog>` в Vue (см. `vue-quasar-components`).
+- Хак-фиксы без named invariant (см. `no-hacks`).
