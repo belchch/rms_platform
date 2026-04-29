@@ -26,8 +26,7 @@ const (
 
 	// bcryptDummyHash is a valid bcrypt cost-10 hash; used only when the email is unknown
 	// so CompareHashAndPassword still runs and timing is less revealing.
-	bcryptDummyHash             = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
-	workspaceNotConfiguredTitle = "workspace not configured"
+	bcryptDummyHash = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
 )
 
 type SignInInput struct {
@@ -98,13 +97,9 @@ func (h *handler) signIn(ctx context.Context, input *SignInInput) (*SignInOutput
 	ws, err := h.q.GetWorkspaceByOwnerID(ctx, user.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, huma.NewError(http.StatusForbidden, workspaceNotConfiguredTitle)
+			return nil, huma.NewError(http.StatusUnauthorized, "invalid credentials")
 		}
 		return nil, fmt.Errorf("auth sign-in workspace: %w", err)
-	}
-	access, err := jwtutil.IssueAccessToken(user.ID, ws.ID, h.jwtSecret, accessTokenTTL)
-	if err != nil {
-		return nil, fmt.Errorf("auth sign-in issue access: %w", err)
 	}
 	rawRefresh, err := randomOpaqueToken()
 	if err != nil {
@@ -124,13 +119,17 @@ func (h *handler) signIn(ctx context.Context, input *SignInInput) (*SignInOutput
 	if err != nil {
 		return nil, fmt.Errorf("auth sign-in store refresh: %w", err)
 	}
+	access, err := jwtutil.IssueAccessToken(user.ID, ws.ID, h.jwtSecret, accessTokenTTL)
+	if err != nil {
+		return nil, fmt.Errorf("auth sign-in issue access: %w", err)
+	}
 	out := &SignInOutput{}
 	out.Body.AccessToken = access
 	out.Body.RefreshToken = rawRefresh
 	return out, nil
 }
 
-func (h *handler) refresh(ctx context.Context, input *RefreshInput) (*RefreshOutput, error) {
+func (h *handler) refresh(ctx context.Context, input *RefreshInput) (out *RefreshOutput, err error) {
 	if input.Body.RefreshToken == "" {
 		return nil, huma.NewError(http.StatusUnauthorized, "invalid credentials")
 	}
@@ -140,7 +139,11 @@ func (h *handler) refresh(ctx context.Context, input *RefreshInput) (*RefreshOut
 	if err != nil {
 		return nil, fmt.Errorf("auth refresh begin tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		if rbErr := tx.Rollback(ctx); rbErr != nil && !errors.Is(rbErr, pgx.ErrTxClosed) && err == nil {
+			err = fmt.Errorf("auth refresh rollback: %w", rbErr)
+		}
+	}()
 
 	qtx := h.q.WithTx(tx)
 	row, err := qtx.GetRefreshTokenByHashForUpdate(ctx, hash)
@@ -163,7 +166,7 @@ func (h *handler) refresh(ctx context.Context, input *RefreshInput) (*RefreshOut
 	ws, err := qtx.GetWorkspaceByOwnerID(ctx, user.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, huma.NewError(http.StatusForbidden, workspaceNotConfiguredTitle)
+			return nil, huma.NewError(http.StatusUnauthorized, "invalid credentials")
 		}
 		return nil, fmt.Errorf("auth refresh workspace: %w", err)
 	}
@@ -187,15 +190,14 @@ func (h *handler) refresh(ctx context.Context, input *RefreshInput) (*RefreshOut
 	}); err != nil {
 		return nil, fmt.Errorf("auth refresh store new: %w", err)
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("auth refresh commit: %w", err)
-	}
-
 	access, err := jwtutil.IssueAccessToken(user.ID, ws.ID, h.jwtSecret, accessTokenTTL)
 	if err != nil {
 		return nil, fmt.Errorf("auth refresh issue access: %w", err)
 	}
-	out := &RefreshOutput{}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("auth refresh commit: %w", err)
+	}
+	out = &RefreshOutput{}
 	out.Body.AccessToken = access
 	out.Body.RefreshToken = rawRefresh
 	return out, nil
