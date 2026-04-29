@@ -2,11 +2,13 @@ package photos
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/belchch/rms_platform/api/internal/db"
+	"github.com/belchch/rms_platform/api/internal/middleware"
 )
 
 type UploadUrlInput struct {
@@ -35,7 +37,10 @@ func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
 	}, uploadUrl)
 }
 
-func uploadUrl(_ context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
+func uploadUrl(ctx context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
+	if _, ok := middleware.WorkspaceID(ctx); !ok {
+		return nil, huma.NewError(http.StatusInternalServerError, "missing workspace context")
+	}
 	output := &UploadUrlOutput{}
 	output.Body.UploadURL = "todo"
 	output.Body.Method = "PUT"

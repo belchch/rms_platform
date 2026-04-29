@@ -2,11 +2,13 @@ package sync
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/belchch/rms_platform/api/internal/db"
+	"github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
@@ -54,14 +56,20 @@ func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
 	}, push)
 }
 
-func pull(_ context.Context, _ *PullInput) (*PullOutput, error) {
+func pull(ctx context.Context, _ *PullInput) (*PullOutput, error) {
+	if _, ok := middleware.WorkspaceID(ctx); !ok {
+		return nil, huma.NewError(http.StatusInternalServerError, "missing workspace context")
+	}
 	output := &PullOutput{}
 	output.Body.Cursor = 0
 	output.Body.Changes = []synctypes.PullChange{}
 	return output, nil
 }
 
-func push(_ context.Context, _ *PushInput) (*PushOutput, error) {
+func push(ctx context.Context, _ *PushInput) (*PushOutput, error) {
+	if _, ok := middleware.WorkspaceID(ctx); !ok {
+		return nil, huma.NewError(http.StatusInternalServerError, "missing workspace context")
+	}
 	output := &PushOutput{}
 	output.Body.Cursor = 0
 	output.Body.Applied = []string{}

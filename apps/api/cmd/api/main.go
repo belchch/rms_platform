@@ -44,6 +44,7 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.Recover)
 	router.Use(middleware.Logger)
+	router.Use(middleware.BearerWorkspace(cfg.JWTSecret))
 
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
