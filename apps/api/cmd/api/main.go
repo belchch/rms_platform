@@ -53,10 +53,11 @@ func main() {
 	queries := db.New(pool)
 
 	api := humachi.New(router, huma.DefaultConfig("RMS Platform API", "0.1.0"))
+	api.UseMiddleware(middleware.BearerWorkspace(api, cfg.JWTSecret))
 
 	authhandler.Register(api, queries, pool, cfg.JWTSecret)
-	synchandler.Register(api, queries, pool)
-	photoshandler.Register(api, queries, pool)
+	synchandler.Register(api)
+	photoshandler.Register(api)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("addr", addr).Msg("starting server")

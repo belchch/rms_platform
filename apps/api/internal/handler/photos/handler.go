@@ -2,11 +2,9 @@ package photos
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/belchch/rms_platform/api/internal/db"
 )
 
 type UploadUrlInput struct {
@@ -25,13 +23,14 @@ type UploadUrlOutput struct {
 	}
 }
 
-func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
+func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
-		Method:      "POST",
+		Method:      http.MethodPost,
 		Path:        "/api/v1/photos/upload-url",
 		Summary:     "Get pre-signed PUT URL for photo upload",
 		Tags:        []string{"photos"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, uploadUrl)
 }
 

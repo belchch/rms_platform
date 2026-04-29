@@ -2,11 +2,10 @@ package sync
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/belchch/rms_platform/api/internal/db"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
@@ -36,21 +35,25 @@ type PushOutput struct {
 	}
 }
 
-func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
+var bearerAuth = []map[string][]string{{"bearerAuth": {}}}
+
+func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-pull",
-		Method:      "GET",
+		Method:      http.MethodGet,
 		Path:        "/api/v1/sync/pull",
 		Summary:     "Pull changes from server",
 		Tags:        []string{"sync"},
+		Security:    bearerAuth,
 	}, pull)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-push",
-		Method:      "POST",
+		Method:      http.MethodPost,
 		Path:        "/api/v1/sync/push",
 		Summary:     "Push local changes to server",
 		Tags:        []string{"sync"},
+		Security:    bearerAuth,
 	}, push)
 }
 
