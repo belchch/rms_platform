@@ -2,9 +2,10 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/belchch/rms_platform/api/internal/jwtutil"
 )
@@ -16,49 +17,27 @@ func WorkspaceID(ctx context.Context) (string, bool) {
 	return v, ok && v != ""
 }
 
-func BearerWorkspace(secret string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if bypassBearerAuth(r.URL.Path) {
-				next.ServeHTTP(w, r)
-				return
+func BearerWorkspace(api huma.API, secret string) func(huma.Context, func(huma.Context)) {
+	return func(ctx huma.Context, next func(huma.Context)) {
+		for _, sec := range ctx.Operation().Security {
+			if _, needsBearer := sec["bearerAuth"]; !needsBearer {
+				continue
 			}
-
-			raw, ok := parseBearerHeader(r.Header.Get("Authorization"))
+			raw, ok := parseBearerHeader(ctx.Header("Authorization"))
 			if !ok {
-				writeUnauthorizedJSON(w)
+				huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized")
 				return
 			}
-
 			claims, err := jwtutil.ParseAccessToken(raw, secret)
 			if err != nil || claims.WorkspaceID == "" {
-				writeUnauthorizedJSON(w)
+				huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized")
 				return
 			}
-
-			ctx := context.WithValue(r.Context(), workspaceIDCtxKey{}, claims.WorkspaceID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+			next(huma.WithValue(ctx, workspaceIDCtxKey{}, claims.WorkspaceID))
+			return
+		}
+		next(ctx)
 	}
-}
-
-func bypassBearerAuth(path string) bool {
-	switch {
-	case path == "/health":
-		return true
-	case strings.HasPrefix(path, "/api/v1/auth/"):
-		return true
-	default:
-		return false
-	}
-}
-
-func writeUnauthorizedJSON(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(struct {
-		Message string `json:"message"`
-	}{Message: "Unauthorized"})
 }
 
 func parseBearerHeader(h string) (string, bool) {

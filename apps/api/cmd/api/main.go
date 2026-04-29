@@ -44,7 +44,6 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.Recover)
 	router.Use(middleware.Logger)
-	router.Use(middleware.BearerWorkspace(cfg.JWTSecret))
 
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -54,6 +53,7 @@ func main() {
 	queries := db.New(pool)
 
 	api := humachi.New(router, huma.DefaultConfig("RMS Platform API", "0.1.0"))
+	api.UseMiddleware(middleware.BearerWorkspace(api, cfg.JWTSecret))
 
 	authhandler.Register(api, queries, pool, cfg.JWTSecret)
 	synchandler.Register(api)

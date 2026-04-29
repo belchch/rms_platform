@@ -5,8 +5,6 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-
-	"github.com/belchch/rms_platform/api/internal/middleware"
 )
 
 type UploadUrlInput struct {
@@ -28,17 +26,15 @@ type UploadUrlOutput struct {
 func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
-		Method:      "POST",
+		Method:      http.MethodPost,
 		Path:        "/api/v1/photos/upload-url",
 		Summary:     "Get pre-signed PUT URL for photo upload",
 		Tags:        []string{"photos"},
+		Security:    []map[string][]string{{"bearerAuth": {}}},
 	}, uploadUrl)
 }
 
-func uploadUrl(ctx context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
-	if _, ok := middleware.WorkspaceID(ctx); !ok {
-		return nil, huma.NewError(http.StatusUnauthorized, "missing workspace context")
-	}
+func uploadUrl(_ context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
 	output := &UploadUrlOutput{}
 	output.Body.UploadURL = "todo"
 	output.Body.Method = "PUT"

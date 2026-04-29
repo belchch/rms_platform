@@ -2,14 +2,30 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/humatest"
+
 	"github.com/belchch/rms_platform/api/internal/jwtutil"
 )
+
+type noIn struct{}
+type okOut struct {
+	Body struct {
+		Workspace string `json:"workspace"`
+	}
+}
+
+func newTestRouter(t *testing.T, secret string) (http.Handler, huma.API) {
+	t.Helper()
+	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
+	api.UseMiddleware(BearerWorkspace(api, secret))
+	return router, api
+}
 
 func TestBearerWorkspace_acceptsValidToken(t *testing.T) {
 	const secret = "01234567890123456789012345678901"
@@ -19,80 +35,73 @@ func TestBearerWorkspace_acceptsValidToken(t *testing.T) {
 	}
 
 	var sawWorkspace string
-	h := BearerWorkspace(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var ok bool
-		sawWorkspace, ok = WorkspaceID(r.Context())
-		if !ok {
-			t.Error("expected workspace in context")
-		}
-		w.WriteHeader(http.StatusTeapot)
-	}))
+	router, api := newTestRouter(t, secret)
+	huma.Register(api, huma.Operation{
+		OperationID: "check-ws",
+		Method:      http.MethodGet,
+		Path:        "/check",
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, func(ctx context.Context, _ *noIn) (*okOut, error) {
+		o := &okOut{}
+		sawWorkspace, _ = WorkspaceID(ctx)
+		o.Body.Workspace = sawWorkspace
+		return o, nil
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/sync/pull", nil)
+	req := httptest.NewRequest(http.MethodGet, "/check", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusTeapot {
-		t.Fatalf("status %d, want %d", rr.Code, http.StatusTeapot)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, want %d: %s", rr.Code, http.StatusOK, rr.Body.String())
 	}
 	if sawWorkspace != "ws-42" {
 		t.Fatalf("workspace %q, want ws-42", sawWorkspace)
 	}
 }
 
-func TestBearerWorkspace_skipsAuthRoutes(t *testing.T) {
-	h := BearerWorkspace("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
+func TestBearerWorkspace_allowsPublicOperation(t *testing.T) {
+	router, api := newTestRouter(t, "secret")
+	huma.Register(api, huma.Operation{
+		OperationID: "public-op",
+		Method:      http.MethodGet,
+		Path:        "/public",
+	}, func(_ context.Context, _ *noIn) (*okOut, error) {
+		return &okOut{}, nil
+	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/sign-in", nil)
+	req := httptest.NewRequest(http.MethodGet, "/public", nil)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusOK {
-		t.Fatalf("status %d", rr.Code)
-	}
-}
-
-func TestBearerWorkspace_skipsHealth(t *testing.T) {
-	h := BearerWorkspace("secret")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status %d", rr.Code)
+		t.Fatalf("status %d, want %d", rr.Code, http.StatusOK)
 	}
 }
 
 func TestBearerWorkspace_missingHeader(t *testing.T) {
-	h := BearerWorkspace("secret")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("next must not run")
-	}))
+	router, api := newTestRouter(t, "secret")
+	huma.Register(api, huma.Operation{
+		OperationID: "secured-op",
+		Method:      http.MethodGet,
+		Path:        "/secured",
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, func(_ context.Context, _ *noIn) (*okOut, error) {
+		t.Fatal("handler must not be called without token")
+		return nil, nil
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/sync/pull", nil)
+	req := httptest.NewRequest(http.MethodGet, "/secured", nil)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status %d", rr.Code)
+		t.Fatalf("status %d, want %d", rr.Code, http.StatusUnauthorized)
 	}
 	ct := rr.Header().Get("Content-Type")
-	if ct != "application/json; charset=utf-8" {
-		t.Fatalf("Content-Type %q, want application/json; charset=utf-8", ct)
-	}
-	var body struct {
-		Message string `json:"message"`
-	}
-	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
-		t.Fatal(err)
-	}
-	if body.Message != "Unauthorized" {
-		t.Fatalf("message %q", body.Message)
+	if ct != "application/problem+json" {
+		t.Fatalf("Content-Type %q, want application/problem+json", ct)
 	}
 }
 
@@ -103,17 +112,24 @@ func TestBearerWorkspace_invalidSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := BearerWorkspace("wrongwrongwrongwrongwrongwrongwr")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("next must not run")
-	}))
+	router, api := newTestRouter(t, "wrongwrongwrongwrongwrongwrongwr")
+	huma.Register(api, huma.Operation{
+		OperationID: "secured-op2",
+		Method:      http.MethodGet,
+		Path:        "/secured2",
+		Security:    []map[string][]string{{"bearerAuth": {}}},
+	}, func(_ context.Context, _ *noIn) (*okOut, error) {
+		t.Fatal("handler must not be called with wrong secret")
+		return nil, nil
+	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/sync/pull", nil)
+	req := httptest.NewRequest(http.MethodGet, "/secured2", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
+	router.ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusUnauthorized {
-		t.Fatalf("status %d", rr.Code)
+		t.Fatalf("status %d, want %d", rr.Code, http.StatusUnauthorized)
 	}
 }
 
@@ -125,17 +141,9 @@ func TestParseBearerHeader_caseInsensitiveScheme(t *testing.T) {
 }
 
 func TestWorkspaceID_emptyStoredRejected(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	ctx := req.Context()
-	ctx = contextWithWorkspace(ctx, "")
-	req = req.WithContext(ctx)
-
-	_, ok := WorkspaceID(req.Context())
+	ctx := context.WithValue(context.Background(), workspaceIDCtxKey{}, "")
+	_, ok := WorkspaceID(ctx)
 	if ok {
 		t.Fatal("expected empty workspace to be rejected")
 	}
-}
-
-func contextWithWorkspace(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, workspaceIDCtxKey{}, id)
 }

@@ -1,0 +1,86 @@
+[
+  {
+    "file": "apps/api/internal/middleware/auth.go",
+    "line": 28,
+    "side": "RIGHT",
+    "severity": "major",
+    "note": "Использование http.Error возвращает text/plain вместо требуемого application/json. Это нарушает OpenAPI контракт, на который полагаются клиенты. Необходимо возвращать JSON-структуру ErrorResponse или использовать механизмы ошибок huma."
+  },
+  {
+    "file": "apps/api/internal/middleware/auth.go",
+    "line": 34,
+    "side": "RIGHT",
+    "severity": "major",
+    "note": "Возврат ошибки 401 через http.Error нарушает спецификацию OpenAPI. Клиенты ожидают JSON в формате ErrorResponse, а получают обычный текст. Замените вызов на формирование корректного JSON-ответа."
+  },
+  {
+    "file": "apps/api/internal/handler/photos/handler.go",
+    "line": 42,
+    "side": "RIGHT",
+    "severity": "major",
+    "note": "Использование 500 ошибки при отсутствии контекста некорректно и маскирует проблемы авторизации. Это путает клиента и затрудняет мониторинг серверных сбоев. Используйте код 401 или удалите проверку, если middleware гарантирует наличие контекста."
+  },
+  {
+    "file": "apps/api/internal/handler/sync/handler.go",
+    "line": 61,
+    "side": "RIGHT",
+    "severity": "major",
+    "note": "Ошибка 500 при отсутствии workspaceId в pull-запросе противоречит семантике авторизации. Это нарушает контракт API и скрывает реальную причину отказа. Замените статус на 401 Unauthorized."
+  },
+  {
+    "file": "apps/api/internal/handler/sync/handler.go",
+    "line": 71,
+    "side": "RIGHT",
+    "severity": "major",
+    "note": "Выброс 500 ошибки при отсутствии контекста в push-запросе некорректен. Такое поведение не соответствует ожидаемому 401 коду в контракте. Установите статус 401 для ошибок авторизации."
+  },
+  {
+    "file": "apps/api/internal/handler/photos/handler.go",
+    "line": 40,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Проверка WorkspaceID продублирована в хендлерах photos и sync. Это усложняет поддержку и увеличивает риск ошибок при изменении логики авторизации. Вынесите проверку в общий слой или полностью доверьтесь chi middleware."
+  },
+  {
+    "file": "apps/api/internal/middleware/auth.go",
+    "line": 44,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Список исключений auth-middleware жестко привязан к путям /health и /api/v1/auth/. Дублирование структуры роутинга повышает риск оставить новые публичные эндпоинты закрытыми. Используйте более гибкий механизм определения публичных маршрутов."
+  },
+  {
+    "file": "apps/api/internal/handler/photos/handler.go",
+    "line": 41,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Код проверяет наличие workspaceId, но игнорирует само значение. Без передачи ID в SQL-запросы нарушается базовый инвариант безопасности проекта. Извлекайте значение workspaceId и используйте его для фильтрации данных."
+  },
+  {
+    "file": "apps/api/internal/handler/sync/handler.go",
+    "line": 60,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Результат вызова WorkspaceID в методе pull отбрасывается. Это сделает невозможным выполнение обязательной фильтрации по workspace_id в БД. Сохраняйте ID из контекста для использования в sqlc-запросах."
+  },
+  {
+    "file": "apps/api/internal/handler/sync/handler.go",
+    "line": 70,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "В методе push проверяется только факт наличия ID, но само значение не сохраняется. Это создает риск утечки данных при выполнении операций записи без фильтра по workspace. Используйте полученный ID во всех SQL-операциях."
+  },
+  {
+    "file": "apps/api/internal/handler/photos/handler.go",
+    "line": 30,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Параметры q и pool в функции Register не используются. Лишние зависимости создают шум в коде и усложняют сигнатуру. Удалите неиспользуемые аргументы до момента появления реальной логики работы с БД."
+  },
+  {
+    "file": "apps/api/internal/handler/sync/handler.go",
+    "line": 41,
+    "side": "RIGHT",
+    "severity": "minor",
+    "note": "Функция Register принимает неиспользуемые параметры q и pool. Это нарушает чистоту API и вводит в заблуждение относительно зависимостей пакета. Уберите неиспользуемые параметры из сигнатуры."
+  }
+]

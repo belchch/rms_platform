@@ -6,7 +6,6 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
-	"github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
@@ -36,38 +35,36 @@ type PushOutput struct {
 	}
 }
 
+var bearerAuth = []map[string][]string{{"bearerAuth": {}}}
+
 func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-pull",
-		Method:      "GET",
+		Method:      http.MethodGet,
 		Path:        "/api/v1/sync/pull",
 		Summary:     "Pull changes from server",
 		Tags:        []string{"sync"},
+		Security:    bearerAuth,
 	}, pull)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-push",
-		Method:      "POST",
+		Method:      http.MethodPost,
 		Path:        "/api/v1/sync/push",
 		Summary:     "Push local changes to server",
 		Tags:        []string{"sync"},
+		Security:    bearerAuth,
 	}, push)
 }
 
-func pull(ctx context.Context, _ *PullInput) (*PullOutput, error) {
-	if _, ok := middleware.WorkspaceID(ctx); !ok {
-		return nil, huma.NewError(http.StatusUnauthorized, "missing workspace context")
-	}
+func pull(_ context.Context, _ *PullInput) (*PullOutput, error) {
 	output := &PullOutput{}
 	output.Body.Cursor = 0
 	output.Body.Changes = []synctypes.PullChange{}
 	return output, nil
 }
 
-func push(ctx context.Context, _ *PushInput) (*PushOutput, error) {
-	if _, ok := middleware.WorkspaceID(ctx); !ok {
-		return nil, huma.NewError(http.StatusUnauthorized, "missing workspace context")
-	}
+func push(_ context.Context, _ *PushInput) (*PushOutput, error) {
 	output := &PushOutput{}
 	output.Body.Cursor = 0
 	output.Body.Applied = []string{}
