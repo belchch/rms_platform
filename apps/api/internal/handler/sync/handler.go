@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/belchch/rms_platform/api/internal/db"
 	"github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
@@ -38,7 +36,7 @@ type PushOutput struct {
 	}
 }
 
-func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
+func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-pull",
 		Method:      "GET",
@@ -58,7 +56,7 @@ func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool) {
 
 func pull(ctx context.Context, _ *PullInput) (*PullOutput, error) {
 	if _, ok := middleware.WorkspaceID(ctx); !ok {
-		return nil, huma.NewError(http.StatusInternalServerError, "missing workspace context")
+		return nil, huma.NewError(http.StatusUnauthorized, "missing workspace context")
 	}
 	output := &PullOutput{}
 	output.Body.Cursor = 0
@@ -68,7 +66,7 @@ func pull(ctx context.Context, _ *PullInput) (*PullOutput, error) {
 
 func push(ctx context.Context, _ *PushInput) (*PushOutput, error) {
 	if _, ok := middleware.WorkspaceID(ctx); !ok {
-		return nil, huma.NewError(http.StatusInternalServerError, "missing workspace context")
+		return nil, huma.NewError(http.StatusUnauthorized, "missing workspace context")
 	}
 	output := &PushOutput{}
 	output.Body.Cursor = 0

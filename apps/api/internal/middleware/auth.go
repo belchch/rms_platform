@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -25,13 +26,13 @@ func BearerWorkspace(secret string) func(http.Handler) http.Handler {
 
 			raw, ok := parseBearerHeader(r.Header.Get("Authorization"))
 			if !ok {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				writeUnauthorizedJSON(w)
 				return
 			}
 
 			claims, err := jwtutil.ParseAccessToken(raw, secret)
 			if err != nil || claims.WorkspaceID == "" {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				writeUnauthorizedJSON(w)
 				return
 			}
 
@@ -50,6 +51,14 @@ func bypassBearerAuth(path string) bool {
 	default:
 		return false
 	}
+}
+
+func writeUnauthorizedJSON(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(struct {
+		Message string `json:"message"`
+	}{Message: "Unauthorized"})
 }
 
 func parseBearerHeader(h string) (string, bool) {

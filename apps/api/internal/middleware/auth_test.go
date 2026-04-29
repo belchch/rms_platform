@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -79,6 +80,19 @@ func TestBearerWorkspace_missingHeader(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("status %d", rr.Code)
+	}
+	ct := rr.Header().Get("Content-Type")
+	if ct != "application/json; charset=utf-8" {
+		t.Fatalf("Content-Type %q, want application/json; charset=utf-8", ct)
+	}
+	var body struct {
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Message != "Unauthorized" {
+		t.Fatalf("message %q", body.Message)
 	}
 }
 
