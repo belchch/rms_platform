@@ -1,0 +1,86 @@
+---
+description: Чек-лист код-ревью под специфику RMS — что проверять помимо общих best practices.
+---
+
+# Код-ревью — RMS-специфичный чек-лист
+
+Этот файл подключай в режиме ревью (когда триггерится скилл `pr-review-stage1` / `pr-review-stage2` или пользователь просит «сделай ревью PR»). Здесь — только то, что нельзя вывести из общих принципов: проектные инварианты из `docs/knowledge/` и `docs/planning/`. Общие вещи (читаемость, тесты, безопасность) проверяй параллельно по своему усмотрению.
+
+Источник правды для каждого пункта — `docs/knowledge/sync-protocol.md`, `docs/knowledge/hybrid-plan-model.md`, `docs/knowledge/offline-first-sync.md`, `docs/planning/sprint-1.md`. Если правка осознанно меняет инвариант — это требует апдейта соответствующего документа в том же PR.
+
+## 1. Sync-протокол
+
+| Что искать | Почему баг |
+|---|---|
+| `uuid.New()` / `gen_random_uuid()` / `RETURNING id` для project, plan, room, wall, photo | ID — эхо клиентского UUID v7, см. sync-protocol §2 |
+| Сравнение в LWW с `time.Now()`, `now()`, `current_timestamp` вместо `clientUpdatedAt` | LWW сравнивает клиентский timestamp, а не время прихода |
+| `c.JSON(409, …)`, `huma.Status409Conflict` в handler `/sync/push` | Push всегда отвечает 200 partial-success; конфликты — в `conflicts[]` |
+| Возврат `errors[]` без машиночитаемого `reason` (`validation \| notFound \| forbidden \| unknown`) | Контракт `ErrorItem` фиксирован |
+| `DELETE FROM <sync-таблица>` в SQL/Go | Только soft-delete: `SET deleted_at = now()` |
+| Pull-запрос с `WHERE deleted_at IS NULL` | Pull обязан отдавать tombstones |
+| SELECT по sync-таблице без `WHERE workspace_id = $N` | Утечка данных между workspace |
+| `SyncCursor` инкрементируется в Go-коде или через `EXTRACT(EPOCH …)` | Только через триггер на SEQUENCE `sync_cursor_seq` |
+| Использование `clientOpId` как идентификатора сущности (или наоборот) | Это разные поля; `clientOpId` уникален на операцию |
+
+## 2. Schema / миграции
+
+- Новый файл `002_*.sql`, `003_*.sql` до релиза → нарушение `goose-dev-migrations`. Изменения только в `001_init.sql` + `just db-reset`.
+- Новая sync-таблица **обязана** иметь: `id TEXT PRIMARY KEY`, `workspace_id TEXT NOT NULL REFERENCES workspaces(id)`, `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `sync_cursor BIGINT NOT NULL DEFAULT nextval('sync_cursor_seq')`, `deleted_at TIMESTAMPTZ`, и триггер `BEFORE INSERT OR UPDATE` на бамп `sync_cursor`.
+- ID-колонка `UUID` вместо `TEXT` для синк-сущности → баг (под клиентский UUID v7).
+- Любая правка `apps/api/internal/db/*.go` или `packages/api-contracts/types.gen.ts` руками → баг (это сгенерированные файлы).
+
+## 3. Plan / Room / Wall
+
+- Имена комнат, материалы стен, любые метаданные внутри `Plan.payloadJson` → нарушение гибридной модели. Должны лежать в `rooms` / `walls`.
+- Координаты, длины, графовые связи углов в реляционных колонках → нарушение модели.
+- Серверный endpoint, отдающий «полный план со всеми комнатами и стенами одним JSON» → нарушение: склейка только на клиенте.
+- Plan/room/wall, синхронизируемые как один агрегат (один `sync_cursor` на все три) → нарушение.
+
+## 4. Auth
+
+- `workspaceId` берётся из тела запроса, query-string, path-параметра → баг. Только из JWT через middleware.
+- Handler сам парсит `Authorization`-заголовок или вызывает `jwt.Parse(...)` → баг, должна быть middleware.
+- В ответе `/auth/sign-in` или `/auth/refresh` появилось поле `expiresIn` → баг (контракт фиксирован: TTL читается из claim `exp`).
+- Refresh-токен хранится plaintext в `refresh_tokens` → баг (хэш argon2/bcrypt).
+
+## 5. Photo upload
+
+- Endpoint, парсящий `multipart/form-data` для фото → нарушение (только pre-signed PUT).
+- `photoId` генерируется на сервере (например, в `POST /photos/upload-url`) → баг, клиент задаёт.
+- Любая обработка изображений на сервере (resize, thumbnail, EXIF-strip) в sprint 1 → out-of-scope.
+
+## 6. Web ↔ API
+
+- В `apps/web/src/` есть `interface ProjectDto`, `interface PullResponse` и т.п., повторяющие типы из `types.gen.ts` → баг (single source of truth — `types.gen.ts`).
+- Прямой `fetch('/api/v1/...')`, `axios.get('/api/v1/...')` минуя обёртку в `src/api/` → баг.
+- Изменён `openapi.yaml` без `just api-gen` в том же коммите → баг (TS-клиент устарел).
+- Изменён `openapi.yaml` без синхронной правки `apps/api/internal/sync/types.go` → баг (Go-типы рассинхронизированы; codegen на Go нет).
+
+## 7. Архитектурные слои
+
+- SQL-строки в Go-handler без соответствующего файла в `apps/api/queries/` → нарушение `sqlc-queries`.
+- `pgx.Conn`/`pgxpool.Pool` напрямую в handler минуя сгенерированный `db.Queries` → нарушение слоёв.
+- Прямая запись в `http.ResponseWriter` внутри huma-handler → нарушение `go-http-handlers`.
+- `panic` в request-path → нарушение `go-error-handling`.
+- Два пути записи одной сущности (handler + фоновый воркер пишут в одну таблицу через разные SQL) → нарушение `no-hacks`, single source of truth.
+- Boolean-флаги (`isSyncing`, `loaded`, `initialized`) без описанного контракта в комментарии или документации → нарушение `no-hacks`.
+
+## 8. Breaking changes для клиентов
+
+`docs/review.md` фиксирует это как пункт 1; разворачиваю:
+
+- Удалено существующее поле в OpenAPI-ответе → break.
+- Изменён тип существующего поля (например, `int32` → `int64`, `string` → `enum`) → break.
+- Существующее поле request-а стало `required` (раньше было `optional`) → break для старых клиентов.
+- Ужесточение валидации (`maxLength`, `pattern`) для уже существующего поля без согласования → потенциальный break.
+- Удалён или переименован `EntityType`-литерал (`project | plan | room | wall | photo`) → break. Расширение допустимо.
+- Удалён или переименован `reason`-литерал в `ConflictItem` / `ErrorItem` → break.
+- Изменён формат `cursor` (например, был `int64`, стал `string`) → break.
+
+Если PR ломает что-то из этого — требуй обсуждения версионирования API в комментарии.
+
+## 9. Документация
+
+- PR меняет sync-контракт, но `docs/knowledge/sync-protocol.md` не обновлён → баг.
+- PR меняет схему таблиц `plans`/`rooms`/`walls` или модель геометрии, но `docs/knowledge/hybrid-plan-model.md` не обновлён → баг.
+- PR закрывает «открытый вопрос» из `docs/planning/sprint-1.md` §5, но не отметил его как решённый → недоделка.
