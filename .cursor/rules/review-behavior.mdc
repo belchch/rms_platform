@@ -58,6 +58,7 @@ description: Чек-лист код-ревью под специфику RMS —
 
 ## 7. Архитектурные слои
 
+- Использование `http.Error(w, ...)` в middleware или хендлерах → баг (нарушает OpenAPI контракт, возвращая text/plain вместо JSON). Ошибки должны отдаваться через Huma.
 - SQL-строки в Go-handler без соответствующего файла в `apps/api/queries/` → нарушение `sqlc-queries`.
 - `pgx.Conn`/`pgxpool.Pool` напрямую в handler минуя сгенерированный `db.Queries` → нарушение слоёв.
 - Прямая запись в `http.ResponseWriter` внутри huma-handler → нарушение `go-http-handlers`.

@@ -31,3 +31,9 @@ func handleFoo(_ context.Context, input *FooInput) (*FooOutput, error) {
 - Return `(*Output, error)` — never write directly to `http.ResponseWriter` inside a huma handler.
 - Register handlers via `huma.Register(api, operation, handlerFunc)` in the package-level `Register(api huma.API)` function.
 - Group handlers by domain in `internal/handler/<domain>/handler.go`.
+
+## Error Handling & Middleware
+
+- **Never** use `http.Error(w, ...)` in middleware or handlers. It returns `text/plain` which breaks the OpenAPI JSON contract.
+- In **Huma handlers**: always return `huma.NewError(code, message)`.
+- In **Chi middleware**: you must pass the `huma.API` instance to the middleware and use `huma.WriteErr(api, w, r, huma.Error...)` to ensure the error is formatted as a standard RFC 7807 Problem Details JSON.
