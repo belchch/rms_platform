@@ -81,6 +81,7 @@ paths:
           schema:
             type: integer
             format: int64
+            minimum: 0
           description: Server cursor from previous pull (0 for first pull)
       responses:
         "200":

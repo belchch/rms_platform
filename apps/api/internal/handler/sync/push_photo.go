@@ -50,14 +50,43 @@ func workspaceFromPhotoableOwner(ctx context.Context, q *db.Queries, ownerType, 
 	}
 }
 
-func photoSnapshot(ctx context.Context, q *db.Queries, p db.Photo) (synctypes.EntitySnapshot, error) {
-	pa, err := q.GetPhotoableByID(ctx, p.PhotoableID)
+func entityTypeFromPhotoOwner(ownerType string) (synctypes.EntityType, error) {
+	switch ownerType {
+	case "project":
+		return synctypes.EntityTypeProject, nil
+	case "room":
+		return synctypes.EntityTypeRoom, nil
+	case "wall":
+		return synctypes.EntityTypeWall, nil
+	default:
+		return "", fmt.Errorf("%w: %s", errUnsupportedOwnerType, ownerType)
+	}
+}
+
+func listPhotosSinceRowToPhoto(r db.ListPhotosSinceRow) db.Photo {
+	return db.Photo{
+		ID:          r.ID,
+		PhotoableID: r.PhotoableID,
+		RemoteUrl:   r.RemoteUrl,
+		ContentType: r.ContentType,
+		Name:        r.Name,
+		Caption:     r.Caption,
+		TakenAt:     r.TakenAt,
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+		DeletedAt:   r.DeletedAt,
+		SyncCursor:  r.SyncCursor,
+	}
+}
+
+func photoSnapshotFromOwnerAndPhoto(ownerType, ownerID string, p db.Photo) (synctypes.EntitySnapshot, error) {
+	pt, err := entityTypeFromPhotoOwner(ownerType)
 	if err != nil {
 		return synctypes.EntitySnapshot{}, err
 	}
 	pl := synctypes.PhotoPayload{
-		ParentType:  synctypes.EntityType(pa.OwnerType),
-		ParentID:    pa.OwnerID,
+		ParentType:  pt,
+		ParentID:    ownerID,
 		ContentType: p.ContentType,
 		Name:        p.Name,
 		Caption:     p.Caption,
@@ -75,6 +104,18 @@ func photoSnapshot(ctx context.Context, q *db.Queries, p db.Photo) (synctypes.En
 		EntityID:   p.ID,
 		Payload:    raw,
 	}, nil
+}
+
+func photoSnapshot(ctx context.Context, q *db.Queries, p db.Photo) (synctypes.EntitySnapshot, error) {
+	pa, err := q.GetPhotoableByID(ctx, p.PhotoableID)
+	if err != nil {
+		return synctypes.EntitySnapshot{}, err
+	}
+	return photoSnapshotFromOwnerAndPhoto(pa.OwnerType, pa.OwnerID, p)
+}
+
+func photoSnapshotFromPullRow(r db.ListPhotosSinceRow) (synctypes.EntitySnapshot, error) {
+	return photoSnapshotFromOwnerAndPhoto(r.OwnerType, r.OwnerID, listPhotosSinceRowToPhoto(r))
 }
 
 func (h *handler) pushPhoto(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {

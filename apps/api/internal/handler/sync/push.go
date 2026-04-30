@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -19,10 +18,6 @@ import (
 
 type handler struct {
 	pool *pgxpool.Pool
-}
-
-func epochMsToTimestamptz(ms int64) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: time.UnixMilli(ms), Valid: true}
 }
 
 func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) (bool, error) {
