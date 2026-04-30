@@ -138,6 +138,12 @@ paths:
                 $ref: "#/components/schemas/PhotoUploadUrlResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   securitySchemes:

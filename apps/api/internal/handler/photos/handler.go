@@ -3,8 +3,11 @@ package photos
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+
+	"github.com/belchch/rms_platform/api/internal/storage"
 )
 
 type UploadUrlInput struct {
@@ -23,7 +26,12 @@ type UploadUrlOutput struct {
 	}
 }
 
-func Register(api huma.API) {
+type Handler struct {
+	store storage.PhotoUploader
+}
+
+func Register(api huma.API, store storage.PhotoUploader) {
+	h := &Handler{store: store}
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
 		Method:      http.MethodPost,
@@ -31,14 +39,28 @@ func Register(api huma.API) {
 		Summary:     "Get pre-signed PUT URL for photo upload",
 		Tags:        []string{"photos"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, uploadUrl)
+	}, h.uploadUrl)
 }
 
-func uploadUrl(_ context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
+func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*UploadUrlOutput, error) {
+	photoID := strings.TrimSpace(input.Body.PhotoID)
+	contentType := strings.TrimSpace(input.Body.ContentType)
+	if photoID == "" {
+		return nil, huma.Error422UnprocessableEntity("photoId must not be empty")
+	}
+	if contentType == "" {
+		return nil, huma.Error422UnprocessableEntity("contentType must not be empty")
+	}
+
+	uploadURL, headers, expiresAtMs, err := h.store.PresignedPut(ctx, photoID, contentType)
+	if err != nil {
+		return nil, huma.Error500InternalServerError(err.Error())
+	}
+
 	output := &UploadUrlOutput{}
-	output.Body.UploadURL = "todo"
-	output.Body.Method = "PUT"
-	output.Body.Headers = map[string]string{}
-	output.Body.ExpiresAt = 0
+	output.Body.UploadURL = uploadURL
+	output.Body.Method = http.MethodPut
+	output.Body.Headers = headers
+	output.Body.ExpiresAt = expiresAtMs
 	return output, nil
 }

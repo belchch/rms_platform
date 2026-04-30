@@ -19,6 +19,7 @@ import (
 	photoshandler "github.com/belchch/rms_platform/api/internal/handler/photos"
 	synchandler "github.com/belchch/rms_platform/api/internal/handler/sync"
 	"github.com/belchch/rms_platform/api/internal/middleware"
+	"github.com/belchch/rms_platform/api/internal/storage"
 )
 
 func main() {
@@ -41,6 +42,20 @@ func main() {
 	}
 	log.Info().Msg("database connected")
 
+	photoStore, err := storage.NewMinioPhotoStore(
+		cfg.S3Endpoint,
+		cfg.S3PublicEndpoint,
+		cfg.S3AccessKey,
+		cfg.S3SecretKey,
+		cfg.S3Bucket,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to init object storage")
+	}
+	if err := photoStore.EnsureBucket(context.Background()); err != nil {
+		log.Fatal().Err(err).Msg("failed to ensure S3 bucket")
+	}
+
 	router := chi.NewRouter()
 	router.Use(middleware.Recover)
 	router.Use(middleware.Logger)
@@ -57,7 +72,7 @@ func main() {
 
 	authhandler.Register(api, queries, pool, cfg.JWTSecret)
 	synchandler.Register(api, pool)
-	photoshandler.Register(api)
+	photoshandler.Register(api, photoStore)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("addr", addr).Msg("starting server")
