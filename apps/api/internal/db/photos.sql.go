@@ -35,19 +35,19 @@ func (q *Queries) GetPhotoByID(ctx context.Context, id string) (Photo, error) {
 }
 
 const listPhotosSince = `-- name: ListPhotosSince :many
-SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN projects proj ON pa.owner_type = 'project' AND pa.owner_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN rooms r ON pa.owner_type = 'room' AND pa.owner_id = r.id
 JOIN plans pl ON r.plan_id = pl.id
 JOIN projects proj ON pl.project_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN walls w ON pa.owner_type = 'wall' AND pa.owner_id = w.id
 JOIN rooms r ON w.room_id = r.id
@@ -62,15 +62,31 @@ type ListPhotosSinceParams struct {
 	SyncCursor  int64  `json:"sync_cursor"`
 }
 
-func (q *Queries) ListPhotosSince(ctx context.Context, arg ListPhotosSinceParams) ([]Photo, error) {
+type ListPhotosSinceRow struct {
+	ID          string             `json:"id"`
+	PhotoableID string             `json:"photoable_id"`
+	RemoteUrl   *string            `json:"remote_url"`
+	ContentType string             `json:"content_type"`
+	Name        *string            `json:"name"`
+	Caption     *string            `json:"caption"`
+	TakenAt     pgtype.Timestamptz `json:"taken_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+	SyncCursor  int64              `json:"sync_cursor"`
+	OwnerType   string             `json:"owner_type"`
+	OwnerID     string             `json:"owner_id"`
+}
+
+func (q *Queries) ListPhotosSince(ctx context.Context, arg ListPhotosSinceParams) ([]ListPhotosSinceRow, error) {
 	rows, err := q.db.Query(ctx, listPhotosSince, arg.WorkspaceID, arg.SyncCursor)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Photo{}
+	items := []ListPhotosSinceRow{}
 	for rows.Next() {
-		var i Photo
+		var i ListPhotosSinceRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PhotoableID,
@@ -83,6 +99,8 @@ func (q *Queries) ListPhotosSince(ctx context.Context, arg ListPhotosSinceParams
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.SyncCursor,
+			&i.OwnerType,
+			&i.OwnerID,
 		); err != nil {
 			return nil, err
 		}

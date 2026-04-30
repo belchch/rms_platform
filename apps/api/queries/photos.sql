@@ -21,19 +21,19 @@ UPDATE photos SET remote_url = $2 WHERE id = $1;
 UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListPhotosSince :many
-SELECT p.* FROM photos p
+SELECT p.*, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN projects proj ON pa.owner_type = 'project' AND pa.owner_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.* FROM photos p
+SELECT p.*, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN rooms r ON pa.owner_type = 'room' AND pa.owner_id = r.id
 JOIN plans pl ON r.plan_id = pl.id
 JOIN projects proj ON pl.project_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.* FROM photos p
+SELECT p.*, pa.owner_type, pa.owner_id FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN walls w ON pa.owner_type = 'wall' AND pa.owner_id = w.id
 JOIN rooms r ON w.room_id = r.id

@@ -8,38 +8,11 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
-
-func timestamptzEpochMs(t pgtype.Timestamptz) int64 {
-	if !t.Valid {
-		return 0
-	}
-	return t.Time.UnixMilli()
-}
-
-func timestamptzEpochMsPtr(t pgtype.Timestamptz) *int64 {
-	if !t.Valid {
-		return nil
-	}
-	ms := t.Time.UnixMilli()
-	return &ms
-}
-
-func pullChangeFromSnapshot(snap synctypes.EntitySnapshot, updatedAt pgtype.Timestamptz, syncCursor int64, deletedAt pgtype.Timestamptz) synctypes.PullChange {
-	return synctypes.PullChange{
-		EntityType: snap.EntityType,
-		EntityID:   snap.EntityID,
-		Payload:    snap.Payload,
-		UpdatedAt:  timestamptzEpochMs(updatedAt),
-		SyncCursor: syncCursor,
-		DeletedAt:  timestamptzEpochMsPtr(deletedAt),
-	}
-}
 
 func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) {
 	wsID, ok := mid.WorkspaceID(ctx)
@@ -47,11 +20,18 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		return nil, huma.NewError(http.StatusUnauthorized, "Unauthorized")
 	}
 
-	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if in.Since < 0 {
+		return nil, huma.NewError(http.StatusBadRequest, "since must be >= 0")
+	}
+
+	tx, err := h.pool.BeginTx(ctx, pgx.TxOptions{
+		AccessMode: pgx.ReadOnly,
+		IsoLevel:   pgx.RepeatableRead,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("sync pull begin: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	q := db.New(tx)
 	since := in.Since
@@ -93,45 +73,31 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 	}
 
 	var changes []synctypes.PullChange
-
-	for _, p := range projects {
-		snap, err := projectSnapshot(p)
-		if err != nil {
-			return nil, fmt.Errorf("sync pull project snapshot: %w", err)
-		}
-		changes = append(changes, pullChangeFromSnapshot(snap, p.UpdatedAt, p.SyncCursor, p.DeletedAt))
+	if changes, err = pullAppendProjects(changes, projects); err != nil {
+		return nil, err
 	}
-	for _, p := range plans {
-		snap, err := planSnapshot(p)
-		if err != nil {
-			return nil, fmt.Errorf("sync pull plan snapshot: %w", err)
-		}
-		changes = append(changes, pullChangeFromSnapshot(snap, p.UpdatedAt, p.SyncCursor, p.DeletedAt))
+	if changes, err = pullAppendPlans(changes, plans); err != nil {
+		return nil, err
 	}
-	for _, r := range rooms {
-		snap, err := roomSnapshot(r)
-		if err != nil {
-			return nil, fmt.Errorf("sync pull room snapshot: %w", err)
-		}
-		changes = append(changes, pullChangeFromSnapshot(snap, r.UpdatedAt, r.SyncCursor, r.DeletedAt))
+	if changes, err = pullAppendRooms(changes, rooms); err != nil {
+		return nil, err
 	}
-	for _, w := range walls {
-		snap, err := wallSnapshot(w)
-		if err != nil {
-			return nil, fmt.Errorf("sync pull wall snapshot: %w", err)
-		}
-		changes = append(changes, pullChangeFromSnapshot(snap, w.UpdatedAt, w.SyncCursor, w.DeletedAt))
+	if changes, err = pullAppendWalls(changes, walls); err != nil {
+		return nil, err
 	}
-	for _, p := range photos {
-		snap, err := photoSnapshot(ctx, q, p)
-		if err != nil {
-			return nil, fmt.Errorf("sync pull photo snapshot: %w", err)
-		}
-		changes = append(changes, pullChangeFromSnapshot(snap, p.UpdatedAt, p.SyncCursor, p.DeletedAt))
+	if changes, err = pullAppendPhotos(changes, photos); err != nil {
+		return nil, err
 	}
 
 	sort.Slice(changes, func(i, j int) bool {
-		return changes[i].SyncCursor < changes[j].SyncCursor
+		a, b := changes[i], changes[j]
+		if a.SyncCursor != b.SyncCursor {
+			return a.SyncCursor < b.SyncCursor
+		}
+		if a.EntityType != b.EntityType {
+			return a.EntityType < b.EntityType
+		}
+		return a.EntityID < b.EntityID
 	})
 
 	if err := tx.Commit(ctx); err != nil {
