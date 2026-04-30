@@ -5,11 +5,12 @@ SELECT * FROM walls WHERE id = $1 LIMIT 1;
 INSERT INTO walls (id, room_id, updated_at)
 VALUES ($1, $2, $3)
 ON CONFLICT (id) DO UPDATE SET
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING *;
 
 -- name: SoftDeleteWall :one
-UPDATE walls SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE walls SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListWallsSince :many
 SELECT walls.* FROM walls

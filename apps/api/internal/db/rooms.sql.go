@@ -72,11 +72,16 @@ func (q *Queries) ListRoomsSince(ctx context.Context, arg ListRoomsSinceParams) 
 }
 
 const softDeleteRoom = `-- name: SoftDeleteRoom :one
-UPDATE rooms SET deleted_at = now() WHERE id = $1 RETURNING id, plan_id, name, created_at, updated_at, deleted_at, sync_cursor
+UPDATE rooms SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, plan_id, name, created_at, updated_at, deleted_at, sync_cursor
 `
 
-func (q *Queries) SoftDeleteRoom(ctx context.Context, id string) (Room, error) {
-	row := q.db.QueryRow(ctx, softDeleteRoom, id)
+type SoftDeleteRoomParams struct {
+	ID        string             `json:"id"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeleteRoom(ctx context.Context, arg SoftDeleteRoomParams) (Room, error) {
+	row := q.db.QueryRow(ctx, softDeleteRoom, arg.ID, arg.UpdatedAt)
 	var i Room
 	err := row.Scan(
 		&i.ID,
@@ -95,7 +100,8 @@ INSERT INTO rooms (id, plan_id, name, updated_at)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (id) DO UPDATE SET
     name       = EXCLUDED.name,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING id, plan_id, name, created_at, updated_at, deleted_at, sync_cursor
 `
 

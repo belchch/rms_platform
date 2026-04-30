@@ -8,14 +8,15 @@ ON CONFLICT (id) DO UPDATE SET
     name       = EXCLUDED.name,
     caption    = EXCLUDED.caption,
     taken_at   = EXCLUDED.taken_at,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING *;
 
 -- name: SetPhotoRemoteURL :exec
 UPDATE photos SET remote_url = $2 WHERE id = $1;
 
 -- name: SoftDeletePhoto :one
-UPDATE photos SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListPhotosSince :many
 SELECT p.* FROM photos p

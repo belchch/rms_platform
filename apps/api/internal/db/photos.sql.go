@@ -107,11 +107,16 @@ func (q *Queries) SetPhotoRemoteURL(ctx context.Context, arg SetPhotoRemoteURLPa
 }
 
 const softDeletePhoto = `-- name: SoftDeletePhoto :one
-UPDATE photos SET deleted_at = now() WHERE id = $1 RETURNING id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
+UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
 `
 
-func (q *Queries) SoftDeletePhoto(ctx context.Context, id string) (Photo, error) {
-	row := q.db.QueryRow(ctx, softDeletePhoto, id)
+type SoftDeletePhotoParams struct {
+	ID        string             `json:"id"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeletePhoto(ctx context.Context, arg SoftDeletePhotoParams) (Photo, error) {
+	row := q.db.QueryRow(ctx, softDeletePhoto, arg.ID, arg.UpdatedAt)
 	var i Photo
 	err := row.Scan(
 		&i.ID,
@@ -135,7 +140,8 @@ ON CONFLICT (id) DO UPDATE SET
     name       = EXCLUDED.name,
     caption    = EXCLUDED.caption,
     taken_at   = EXCLUDED.taken_at,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
 `
 

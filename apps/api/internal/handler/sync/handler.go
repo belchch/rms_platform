@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
@@ -37,7 +38,9 @@ type PushOutput struct {
 
 var bearerAuth = []map[string][]string{{"bearerAuth": {}}}
 
-func Register(api huma.API) {
+func Register(api huma.API, pool *pgxpool.Pool) {
+	h := &handler{pool: pool}
+
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-pull",
 		Method:      http.MethodGet,
@@ -54,21 +57,12 @@ func Register(api huma.API) {
 		Summary:     "Push local changes to server",
 		Tags:        []string{"sync"},
 		Security:    bearerAuth,
-	}, push)
+	}, h.push)
 }
 
 func pull(_ context.Context, _ *PullInput) (*PullOutput, error) {
 	output := &PullOutput{}
 	output.Body.Cursor = 0
 	output.Body.Changes = []synctypes.PullChange{}
-	return output, nil
-}
-
-func push(_ context.Context, _ *PushInput) (*PushOutput, error) {
-	output := &PushOutput{}
-	output.Body.Cursor = 0
-	output.Body.Applied = []string{}
-	output.Body.Conflicts = []synctypes.PushConflict{}
-	output.Body.Errors = []synctypes.PushError{}
 	return output, nil
 }

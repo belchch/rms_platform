@@ -28,6 +28,17 @@ func (q *Queries) CreatePhotoable(ctx context.Context, arg CreatePhotoableParams
 	return i, err
 }
 
+const getPhotoableByID = `-- name: GetPhotoableByID :one
+SELECT id, owner_type, owner_id FROM photoables WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetPhotoableByID(ctx context.Context, id string) (Photoable, error) {
+	row := q.db.QueryRow(ctx, getPhotoableByID, id)
+	var i Photoable
+	err := row.Scan(&i.ID, &i.OwnerType, &i.OwnerID)
+	return i, err
+}
+
 const getPhotoableByOwner = `-- name: GetPhotoableByOwner :one
 SELECT id, owner_type, owner_id FROM photoables WHERE owner_type = $1 AND owner_id = $2 LIMIT 1
 `
