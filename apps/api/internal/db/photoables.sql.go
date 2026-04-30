@@ -28,6 +28,17 @@ func (q *Queries) CreatePhotoable(ctx context.Context, arg CreatePhotoableParams
 	return i, err
 }
 
+const getPhotoableByID = `-- name: GetPhotoableByID :one
+SELECT id, owner_type, owner_id FROM photoables WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetPhotoableByID(ctx context.Context, id string) (Photoable, error) {
+	row := q.db.QueryRow(ctx, getPhotoableByID, id)
+	var i Photoable
+	err := row.Scan(&i.ID, &i.OwnerType, &i.OwnerID)
+	return i, err
+}
+
 const getPhotoableByOwner = `-- name: GetPhotoableByOwner :one
 SELECT id, owner_type, owner_id FROM photoables WHERE owner_type = $1 AND owner_id = $2 LIMIT 1
 `
@@ -39,6 +50,26 @@ type GetPhotoableByOwnerParams struct {
 
 func (q *Queries) GetPhotoableByOwner(ctx context.Context, arg GetPhotoableByOwnerParams) (Photoable, error) {
 	row := q.db.QueryRow(ctx, getPhotoableByOwner, arg.OwnerType, arg.OwnerID)
+	var i Photoable
+	err := row.Scan(&i.ID, &i.OwnerType, &i.OwnerID)
+	return i, err
+}
+
+const upsertPhotoableByOwner = `-- name: UpsertPhotoableByOwner :one
+INSERT INTO photoables (id, owner_type, owner_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (owner_type, owner_id) DO UPDATE SET owner_type = EXCLUDED.owner_type
+RETURNING id, owner_type, owner_id
+`
+
+type UpsertPhotoableByOwnerParams struct {
+	ID        string `json:"id"`
+	OwnerType string `json:"owner_type"`
+	OwnerID   string `json:"owner_id"`
+}
+
+func (q *Queries) UpsertPhotoableByOwner(ctx context.Context, arg UpsertPhotoableByOwnerParams) (Photoable, error) {
+	row := q.db.QueryRow(ctx, upsertPhotoableByOwner, arg.ID, arg.OwnerType, arg.OwnerID)
 	var i Photoable
 	err := row.Scan(&i.ID, &i.OwnerType, &i.OwnerID)
 	return i, err

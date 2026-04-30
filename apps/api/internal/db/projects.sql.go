@@ -80,11 +80,16 @@ func (q *Queries) ListProjectsSince(ctx context.Context, arg ListProjectsSincePa
 }
 
 const softDeleteProject = `-- name: SoftDeleteProject :one
-UPDATE projects SET deleted_at = now() WHERE id = $1 RETURNING id, workspace_id, name, address, description, is_archived, is_favourite, cover_photo_id, created_at, updated_at, deleted_at, sync_cursor
+UPDATE projects SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, workspace_id, name, address, description, is_archived, is_favourite, cover_photo_id, created_at, updated_at, deleted_at, sync_cursor
 `
 
-func (q *Queries) SoftDeleteProject(ctx context.Context, id string) (Project, error) {
-	row := q.db.QueryRow(ctx, softDeleteProject, id)
+type SoftDeleteProjectParams struct {
+	ID        string             `json:"id"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeleteProject(ctx context.Context, arg SoftDeleteProjectParams) (Project, error) {
+	row := q.db.QueryRow(ctx, softDeleteProject, arg.ID, arg.UpdatedAt)
 	var i Project
 	err := row.Scan(
 		&i.ID,
@@ -112,7 +117,8 @@ ON CONFLICT (id) DO UPDATE SET
     description  = EXCLUDED.description,
     is_archived  = EXCLUDED.is_archived,
     is_favourite = EXCLUDED.is_favourite,
-    updated_at   = EXCLUDED.updated_at
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
 RETURNING id, workspace_id, name, address, description, is_archived, is_favourite, cover_photo_id, created_at, updated_at, deleted_at, sync_cursor
 `
 

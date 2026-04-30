@@ -73,11 +73,16 @@ func (q *Queries) ListPlansSince(ctx context.Context, arg ListPlansSinceParams) 
 }
 
 const softDeletePlan = `-- name: SoftDeletePlan :one
-UPDATE plans SET deleted_at = now() WHERE id = $1 RETURNING id, project_id, name, payload_json, created_at, updated_at, deleted_at, sync_cursor
+UPDATE plans SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, project_id, name, payload_json, created_at, updated_at, deleted_at, sync_cursor
 `
 
-func (q *Queries) SoftDeletePlan(ctx context.Context, id string) (Plan, error) {
-	row := q.db.QueryRow(ctx, softDeletePlan, id)
+type SoftDeletePlanParams struct {
+	ID        string             `json:"id"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeletePlan(ctx context.Context, arg SoftDeletePlanParams) (Plan, error) {
+	row := q.db.QueryRow(ctx, softDeletePlan, arg.ID, arg.UpdatedAt)
 	var i Plan
 	err := row.Scan(
 		&i.ID,
@@ -98,7 +103,8 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (id) DO UPDATE SET
     name         = EXCLUDED.name,
     payload_json = EXCLUDED.payload_json,
-    updated_at   = EXCLUDED.updated_at
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
 RETURNING id, project_id, name, payload_json, created_at, updated_at, deleted_at, sync_cursor
 `
 

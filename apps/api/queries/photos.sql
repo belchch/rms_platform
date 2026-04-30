@@ -2,20 +2,23 @@
 SELECT * FROM photos WHERE id = $1 LIMIT 1;
 
 -- name: UpsertPhoto :one
-INSERT INTO photos (id, photoable_id, name, caption, taken_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO photos (id, photoable_id, content_type, name, caption, taken_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (id) DO UPDATE SET
-    name       = EXCLUDED.name,
-    caption    = EXCLUDED.caption,
-    taken_at   = EXCLUDED.taken_at,
-    updated_at = EXCLUDED.updated_at
+    photoable_id = EXCLUDED.photoable_id,
+    content_type = EXCLUDED.content_type,
+    name         = EXCLUDED.name,
+    caption      = EXCLUDED.caption,
+    taken_at     = EXCLUDED.taken_at,
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
 RETURNING *;
 
 -- name: SetPhotoRemoteURL :exec
 UPDATE photos SET remote_url = $2 WHERE id = $1;
 
 -- name: SoftDeletePhoto :one
-UPDATE photos SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListPhotosSince :many
 SELECT p.* FROM photos p

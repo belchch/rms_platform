@@ -65,6 +65,7 @@ description: Чек-лист код-ревью под специфику RMS —
 - `panic` в request-path → нарушение `go-error-handling`.
 - Два пути записи одной сущности (handler + фоновый воркер пишут в одну таблицу через разные SQL) → нарушение `no-hacks`, single source of truth.
 - Boolean-флаги (`isSyncing`, `loaded`, `initialized`) без описанного контракта в комментарии или документации → нарушение `no-hacks`.
+- Логика обработки нескольких sync-сущностей (project, plan, room, wall, photo) в одном файле handler'а вместо отдельных файлов по одной сущности → архитектурный запах. Правило: `internal/handler/sync/push.go` содержит только shared utilities и `applyPushOperation`-диспетчер; логика каждой сущности — в отдельном `push_<entity>.go`. Это распространяется и на pull: если появится аналогичное разрастание, схема та же.
 
 ## 8. Breaking changes для клиентов
 

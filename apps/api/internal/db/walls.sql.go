@@ -71,11 +71,16 @@ func (q *Queries) ListWallsSince(ctx context.Context, arg ListWallsSinceParams) 
 }
 
 const softDeleteWall = `-- name: SoftDeleteWall :one
-UPDATE walls SET deleted_at = now() WHERE id = $1 RETURNING id, room_id, created_at, updated_at, deleted_at, sync_cursor
+UPDATE walls SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, room_id, created_at, updated_at, deleted_at, sync_cursor
 `
 
-func (q *Queries) SoftDeleteWall(ctx context.Context, id string) (Wall, error) {
-	row := q.db.QueryRow(ctx, softDeleteWall, id)
+type SoftDeleteWallParams struct {
+	ID        string             `json:"id"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) SoftDeleteWall(ctx context.Context, arg SoftDeleteWallParams) (Wall, error) {
+	row := q.db.QueryRow(ctx, softDeleteWall, arg.ID, arg.UpdatedAt)
 	var i Wall
 	err := row.Scan(
 		&i.ID,
@@ -92,7 +97,8 @@ const upsertWall = `-- name: UpsertWall :one
 INSERT INTO walls (id, room_id, updated_at)
 VALUES ($1, $2, $3)
 ON CONFLICT (id) DO UPDATE SET
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING id, room_id, created_at, updated_at, deleted_at, sync_cursor
 `
 

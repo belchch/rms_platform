@@ -6,11 +6,12 @@ INSERT INTO rooms (id, plan_id, name, updated_at)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (id) DO UPDATE SET
     name       = EXCLUDED.name,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    deleted_at = NULL
 RETURNING *;
 
 -- name: SoftDeleteRoom :one
-UPDATE rooms SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE rooms SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListRoomsSince :many
 SELECT rooms.* FROM rooms

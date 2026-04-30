@@ -10,11 +10,12 @@ ON CONFLICT (id) DO UPDATE SET
     description  = EXCLUDED.description,
     is_archived  = EXCLUDED.is_archived,
     is_favourite = EXCLUDED.is_favourite,
-    updated_at   = EXCLUDED.updated_at
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
 RETURNING *;
 
 -- name: SoftDeleteProject :one
-UPDATE projects SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE projects SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListProjectsSince :many
 SELECT * FROM projects

@@ -49,7 +49,7 @@ CREATE TABLE projects (
 
 CREATE TABLE plans (
     id           TEXT PRIMARY KEY,
-    project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
     name         TEXT NOT NULL,
     payload_json JSONB,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -60,7 +60,7 @@ CREATE TABLE plans (
 
 CREATE TABLE rooms (
     id          TEXT PRIMARY KEY,
-    plan_id     TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+    plan_id     TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
     name        TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -70,7 +70,7 @@ CREATE TABLE rooms (
 
 CREATE TABLE walls (
     id          TEXT PRIMARY KEY,
-    room_id     TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    room_id     TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at  TIMESTAMPTZ,
@@ -86,8 +86,9 @@ CREATE TABLE photoables (
 
 CREATE TABLE photos (
     id           TEXT PRIMARY KEY,
-    photoable_id TEXT NOT NULL REFERENCES photoables(id) ON DELETE CASCADE,
+    photoable_id TEXT NOT NULL REFERENCES photoables(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
     remote_url   TEXT,
+    content_type TEXT NOT NULL DEFAULT '',
     name         TEXT,
     caption      TEXT,
     taken_at     TIMESTAMPTZ,
@@ -99,7 +100,8 @@ CREATE TABLE photos (
 
 ALTER TABLE projects
     ADD CONSTRAINT fk_projects_cover_photo
-    FOREIGN KEY (cover_photo_id) REFERENCES photos(id) ON DELETE SET NULL;
+    FOREIGN KEY (cover_photo_id) REFERENCES photos(id) ON DELETE SET NULL
+    DEFERRABLE INITIALLY DEFERRED;
 
 CREATE OR REPLACE FUNCTION bump_sync_cursor() RETURNS TRIGGER AS $$
 BEGIN
