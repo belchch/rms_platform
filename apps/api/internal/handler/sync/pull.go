@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5"
@@ -111,24 +110,39 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 	out := &PullOutput{}
 	out.Body.Changes = changes
 	cursor := since
-	typeCounts := make(map[synctypes.EntityType]int)
+	var chgProject, chgPlan, chgRoom, chgWall, chgPhoto, chgOther int
 	for _, c := range changes {
 		if c.SyncCursor > cursor {
 			cursor = c.SyncCursor
 		}
-		typeCounts[c.EntityType]++
+		switch c.EntityType {
+		case synctypes.EntityTypeProject:
+			chgProject++
+		case synctypes.EntityTypePlan:
+			chgPlan++
+		case synctypes.EntityTypeRoom:
+			chgRoom++
+		case synctypes.EntityTypeWall:
+			chgWall++
+		case synctypes.EntityTypePhoto:
+			chgPhoto++
+		default:
+			chgOther++
+		}
 	}
 	out.Body.Cursor = cursor
 
-	logEvt := log.Debug().
+	log.Debug().
 		Int64("since", since).
 		Int64("cursor", cursor).
-		Int("changes", len(changes))
-	for t, n := range typeCounts {
-		key := "chg" + strings.ToUpper(string(t)[:1]) + string(t)[1:]
-		logEvt = logEvt.Int(key, n)
-	}
-	logEvt.Msg("sync pull completed")
+		Int("changes", len(changes)).
+		Int("chgProject", chgProject).
+		Int("chgPlan", chgPlan).
+		Int("chgRoom", chgRoom).
+		Int("chgWall", chgWall).
+		Int("chgPhoto", chgPhoto).
+		Int("chgOther", chgOther).
+		Msg("sync pull completed")
 
 	return out, nil
 }
