@@ -56,7 +56,7 @@ func main() {
 	api.UseMiddleware(middleware.BearerWorkspace(api, cfg.JWTSecret))
 
 	authhandler.Register(api, queries, pool, cfg.JWTSecret)
-	synchandler.Register(api)
+	synchandler.Register(api, pool)
 	photoshandler.Register(api)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

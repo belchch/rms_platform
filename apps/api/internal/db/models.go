@@ -12,6 +12,7 @@ type Photo struct {
 	ID          string             `json:"id"`
 	PhotoableID string             `json:"photoable_id"`
 	RemoteUrl   *string            `json:"remote_url"`
+	ContentType string             `json:"content_type"`
 	Name        *string            `json:"name"`
 	Caption     *string            `json:"caption"`
 	TakenAt     pgtype.Timestamptz `json:"taken_at"`

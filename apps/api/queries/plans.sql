@@ -7,11 +7,12 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (id) DO UPDATE SET
     name         = EXCLUDED.name,
     payload_json = EXCLUDED.payload_json,
-    updated_at   = EXCLUDED.updated_at
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
 RETURNING *;
 
 -- name: SoftDeletePlan :one
-UPDATE plans SET deleted_at = now() WHERE id = $1 RETURNING *;
+UPDATE plans SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING *;
 
 -- name: ListPlansSince :many
 SELECT plans.* FROM plans

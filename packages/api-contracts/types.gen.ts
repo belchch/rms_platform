@@ -253,7 +253,10 @@ export interface components {
             operations: components["schemas"]["PushOperation"][];
         };
         PushResponse: {
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Max sync_cursor among applied operations; 0 if no operations were applied (e.g. all were conflicts or errors). This value must NOT be used as `since` for pull — use the pull endpoint's own cursor returned by GET /sync/pull.
+             */
             cursor: number;
             applied: string[];
             conflicts: components["schemas"]["PushConflict"][];
