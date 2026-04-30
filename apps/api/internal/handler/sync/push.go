@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
@@ -75,6 +76,14 @@ type pushStepResult struct {
 	conflict  *synctypes.PushConflict
 	pushError *synctypes.PushError
 	cursor    int64
+}
+
+func internalPushErr(op synctypes.PushOperation, err error) pushStepResult {
+	log.Error().Err(err).
+		Str("clientOpId", op.ClientOpID).
+		Str("entityId", op.EntityID).
+		Msg("sync push internal error")
+	return pushStepResult{pushError: &synctypes.PushError{Reason: "internal", Message: "internal server error"}}
 }
 
 func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) {

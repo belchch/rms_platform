@@ -53,7 +53,7 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(parentProj.WorkspaceID, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -72,17 +72,17 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 			UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{applied: true, cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 
 	pws, err := workspaceOfPlan(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(pws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -91,7 +91,7 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := planSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -104,7 +104,7 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 		UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
@@ -115,11 +115,11 @@ func (h *handler) pushPlanDelete(ctx context.Context, q *db.Queries, wsID string
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	pws, err := workspaceOfPlan(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(pws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -127,7 +127,7 @@ func (h *handler) pushPlanDelete(ctx context.Context, q *db.Queries, wsID string
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := planSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -136,7 +136,7 @@ func (h *handler) pushPlanDelete(ctx context.Context, q *db.Queries, wsID string
 		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }

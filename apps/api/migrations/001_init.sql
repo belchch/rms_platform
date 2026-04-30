@@ -88,6 +88,7 @@ CREATE TABLE photos (
     id           TEXT PRIMARY KEY,
     photoable_id TEXT NOT NULL REFERENCES photoables(id) ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED,
     remote_url   TEXT,
+    content_type TEXT NOT NULL DEFAULT '',
     name         TEXT,
     caption      TEXT,
     taken_at     TIMESTAMPTZ,

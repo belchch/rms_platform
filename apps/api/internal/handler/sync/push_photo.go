@@ -14,6 +14,11 @@ import (
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
+// errUnsupportedParentType is returned by photoParentWorkspace when the parentType
+// value is not a recognized entity type. Callers use errors.Is to distinguish
+// client validation failures from internal DB errors.
+var errUnsupportedParentType = errors.New("unsupported parentType")
+
 func workspaceOfPhoto(ctx context.Context, q *db.Queries, photoID string) (string, error) {
 	ph, err := q.GetPhotoByID(ctx, photoID)
 	if err != nil {
@@ -51,7 +56,7 @@ func photoSnapshot(ctx context.Context, q *db.Queries, p db.Photo) (synctypes.En
 	pl := synctypes.PhotoPayload{
 		ParentType:  synctypes.EntityType(pa.OwnerType),
 		ParentID:    pa.OwnerID,
-		ContentType: "",
+		ContentType: p.ContentType,
 		Name:        p.Name,
 		Caption:     p.Caption,
 	}
@@ -94,7 +99,7 @@ func photoParentWorkspace(ctx context.Context, q *db.Queries, p synctypes.PhotoP
 	case synctypes.EntityTypeWall:
 		return workspaceOfWall(ctx, q, p.ParentID)
 	default:
-		return "", fmt.Errorf("parentType")
+		return "", fmt.Errorf("%w: %s", errUnsupportedParentType, p.ParentType)
 	}
 }
 
@@ -111,8 +116,11 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "parent not found"}}
 	}
-	if err != nil {
+	if errors.Is(err, errUnsupportedParentType) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: err.Error()}}
+	}
+	if err != nil {
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(pws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -128,52 +136,56 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 		if op.Op == synctypes.OpUpdate {
 			return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "photo not found"}}
 		}
-		ownerType := string(payload.ParentType)
-		pa, err := q.GetPhotoableByOwner(ctx, db.GetPhotoableByOwnerParams{
-			OwnerType: ownerType,
+		pa, err := q.UpsertPhotoableByOwner(ctx, db.UpsertPhotoableByOwnerParams{
+			ID:        uuid.New().String(),
+			OwnerType: string(payload.ParentType),
 			OwnerID:   payload.ParentID,
 		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			pa, err = q.CreatePhotoable(ctx, db.CreatePhotoableParams{
-				ID:        uuid.New().String(),
-				OwnerType: ownerType,
-				OwnerID:   payload.ParentID,
-			})
-			if err != nil {
-				return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
-			}
-		} else if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		if err != nil {
+			return internalPushErr(op, err)
 		}
 		out, err := q.UpsertPhoto(ctx, db.UpsertPhotoParams{
 			ID:          op.EntityID,
 			PhotoableID: pa.ID,
+			ContentType: payload.ContentType,
 			Name:        payload.Name,
 			Caption:     payload.Caption,
 			TakenAt:     takenAt,
 			UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{applied: true, cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 
 	phWS, err := workspaceOfPhoto(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(phWS, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
 
+	existingPA, err := q.GetPhotoableByID(ctx, row.PhotoableID)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if string(payload.ParentType) != existingPA.OwnerType || payload.ParentID != existingPA.OwnerID {
+		snap, err := photoSnapshot(ctx, q, row)
+		if err != nil {
+			return internalPushErr(op, err)
+		}
+		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "parentMismatch", ServerVersion: snap}}
+	}
+
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := photoSnapshot(ctx, q, row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -181,13 +193,14 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 	out, err := q.UpsertPhoto(ctx, db.UpsertPhotoParams{
 		ID:          op.EntityID,
 		PhotoableID: row.PhotoableID,
+		ContentType: payload.ContentType,
 		Name:        payload.Name,
 		Caption:     payload.Caption,
 		TakenAt:     takenAt,
 		UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
@@ -198,11 +211,11 @@ func (h *handler) pushPhotoDelete(ctx context.Context, q *db.Queries, wsID strin
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "photo not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	phWS, err := workspaceOfPhoto(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(phWS, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -210,7 +223,7 @@ func (h *handler) pushPhotoDelete(ctx context.Context, q *db.Queries, wsID strin
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := photoSnapshot(ctx, q, row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -219,7 +232,7 @@ func (h *handler) pushPhotoDelete(ctx context.Context, q *db.Queries, wsID strin
 		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }

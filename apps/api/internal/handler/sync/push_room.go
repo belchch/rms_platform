@@ -52,7 +52,7 @@ func (h *handler) pushRoomUpsert(ctx context.Context, q *db.Queries, wsID string
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(planParentWS, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -70,16 +70,16 @@ func (h *handler) pushRoomUpsert(ctx context.Context, q *db.Queries, wsID string
 			UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{applied: true, cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	rws, err := workspaceOfRoom(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(rws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -87,7 +87,7 @@ func (h *handler) pushRoomUpsert(ctx context.Context, q *db.Queries, wsID string
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := roomSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -98,7 +98,7 @@ func (h *handler) pushRoomUpsert(ctx context.Context, q *db.Queries, wsID string
 		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
@@ -109,11 +109,11 @@ func (h *handler) pushRoomDelete(ctx context.Context, q *db.Queries, wsID string
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "room not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	rws, err := workspaceOfRoom(ctx, q, row.ID)
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(rws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -121,7 +121,7 @@ func (h *handler) pushRoomDelete(ctx context.Context, q *db.Queries, wsID string
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := roomSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -130,7 +130,7 @@ func (h *handler) pushRoomDelete(ctx context.Context, q *db.Queries, wsID string
 		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }

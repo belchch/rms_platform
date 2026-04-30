@@ -12,7 +12,7 @@ import (
 )
 
 const getPhotoByID = `-- name: GetPhotoByID :one
-SELECT id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor FROM photos WHERE id = $1 LIMIT 1
+SELECT id, photoable_id, remote_url, content_type, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor FROM photos WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetPhotoByID(ctx context.Context, id string) (Photo, error) {
@@ -22,6 +22,7 @@ func (q *Queries) GetPhotoByID(ctx context.Context, id string) (Photo, error) {
 		&i.ID,
 		&i.PhotoableID,
 		&i.RemoteUrl,
+		&i.ContentType,
 		&i.Name,
 		&i.Caption,
 		&i.TakenAt,
@@ -34,19 +35,19 @@ func (q *Queries) GetPhotoByID(ctx context.Context, id string) (Photo, error) {
 }
 
 const listPhotosSince = `-- name: ListPhotosSince :many
-SELECT p.id, p.photoable_id, p.remote_url, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN projects proj ON pa.owner_type = 'project' AND pa.owner_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.id, p.photoable_id, p.remote_url, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN rooms r ON pa.owner_type = 'room' AND pa.owner_id = r.id
 JOIN plans pl ON r.plan_id = pl.id
 JOIN projects proj ON pl.project_id = proj.id
 WHERE proj.workspace_id = $1 AND p.sync_cursor > $2
 UNION ALL
-SELECT p.id, p.photoable_id, p.remote_url, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
+SELECT p.id, p.photoable_id, p.remote_url, p.content_type, p.name, p.caption, p.taken_at, p.created_at, p.updated_at, p.deleted_at, p.sync_cursor FROM photos p
 JOIN photoables pa ON p.photoable_id = pa.id
 JOIN walls w ON pa.owner_type = 'wall' AND pa.owner_id = w.id
 JOIN rooms r ON w.room_id = r.id
@@ -74,6 +75,7 @@ func (q *Queries) ListPhotosSince(ctx context.Context, arg ListPhotosSinceParams
 			&i.ID,
 			&i.PhotoableID,
 			&i.RemoteUrl,
+			&i.ContentType,
 			&i.Name,
 			&i.Caption,
 			&i.TakenAt,
@@ -107,7 +109,7 @@ func (q *Queries) SetPhotoRemoteURL(ctx context.Context, arg SetPhotoRemoteURLPa
 }
 
 const softDeletePhoto = `-- name: SoftDeletePhoto :one
-UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
+UPDATE photos SET deleted_at = now(), updated_at = $2 WHERE id = $1 RETURNING id, photoable_id, remote_url, content_type, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
 `
 
 type SoftDeletePhotoParams struct {
@@ -122,6 +124,7 @@ func (q *Queries) SoftDeletePhoto(ctx context.Context, arg SoftDeletePhotoParams
 		&i.ID,
 		&i.PhotoableID,
 		&i.RemoteUrl,
+		&i.ContentType,
 		&i.Name,
 		&i.Caption,
 		&i.TakenAt,
@@ -134,20 +137,23 @@ func (q *Queries) SoftDeletePhoto(ctx context.Context, arg SoftDeletePhotoParams
 }
 
 const upsertPhoto = `-- name: UpsertPhoto :one
-INSERT INTO photos (id, photoable_id, name, caption, taken_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO photos (id, photoable_id, content_type, name, caption, taken_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (id) DO UPDATE SET
-    name       = EXCLUDED.name,
-    caption    = EXCLUDED.caption,
-    taken_at   = EXCLUDED.taken_at,
-    updated_at = EXCLUDED.updated_at,
-    deleted_at = NULL
-RETURNING id, photoable_id, remote_url, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
+    photoable_id = EXCLUDED.photoable_id,
+    content_type = EXCLUDED.content_type,
+    name         = EXCLUDED.name,
+    caption      = EXCLUDED.caption,
+    taken_at     = EXCLUDED.taken_at,
+    updated_at   = EXCLUDED.updated_at,
+    deleted_at   = NULL
+RETURNING id, photoable_id, remote_url, content_type, name, caption, taken_at, created_at, updated_at, deleted_at, sync_cursor
 `
 
 type UpsertPhotoParams struct {
 	ID          string             `json:"id"`
 	PhotoableID string             `json:"photoable_id"`
+	ContentType string             `json:"content_type"`
 	Name        *string            `json:"name"`
 	Caption     *string            `json:"caption"`
 	TakenAt     pgtype.Timestamptz `json:"taken_at"`
@@ -158,6 +164,7 @@ func (q *Queries) UpsertPhoto(ctx context.Context, arg UpsertPhotoParams) (Photo
 	row := q.db.QueryRow(ctx, upsertPhoto,
 		arg.ID,
 		arg.PhotoableID,
+		arg.ContentType,
 		arg.Name,
 		arg.Caption,
 		arg.TakenAt,
@@ -168,6 +175,7 @@ func (q *Queries) UpsertPhoto(ctx context.Context, arg UpsertPhotoParams) (Photo
 		&i.ID,
 		&i.PhotoableID,
 		&i.RemoteUrl,
+		&i.ContentType,
 		&i.Name,
 		&i.Caption,
 		&i.TakenAt,

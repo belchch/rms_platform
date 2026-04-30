@@ -66,12 +66,12 @@ func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID str
 			UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{applied: true, cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -79,7 +79,7 @@ func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID str
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := projectSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -94,7 +94,7 @@ func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID str
 		UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
@@ -105,7 +105,7 @@ func (h *handler) pushProjectDelete(ctx context.Context, q *db.Queries, wsID str
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
 	}
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
@@ -113,7 +113,7 @@ func (h *handler) pushProjectDelete(ctx context.Context, q *db.Queries, wsID str
 	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
 		snap, err := projectSnapshot(row)
 		if err != nil {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+			return internalPushErr(op, err)
 		}
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
@@ -122,7 +122,7 @@ func (h *handler) pushProjectDelete(ctx context.Context, q *db.Queries, wsID str
 		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: err.Error()}}
+		return internalPushErr(op, err)
 	}
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
