@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
@@ -29,6 +30,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		IsoLevel:   pgx.RepeatableRead,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull begin failed")
 		return nil, fmt.Errorf("sync pull begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
@@ -41,6 +43,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		SyncCursor:  since,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull query projects failed")
 		return nil, fmt.Errorf("sync pull projects: %w", err)
 	}
 	plans, err := q.ListPlansSince(ctx, db.ListPlansSinceParams{
@@ -48,6 +51,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		SyncCursor:  since,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull query plans failed")
 		return nil, fmt.Errorf("sync pull plans: %w", err)
 	}
 	rooms, err := q.ListRoomsSince(ctx, db.ListRoomsSinceParams{
@@ -55,6 +59,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		SyncCursor:  since,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull query rooms failed")
 		return nil, fmt.Errorf("sync pull rooms: %w", err)
 	}
 	walls, err := q.ListWallsSince(ctx, db.ListWallsSinceParams{
@@ -62,6 +67,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		SyncCursor:  since,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull query walls failed")
 		return nil, fmt.Errorf("sync pull walls: %w", err)
 	}
 	photos, err := q.ListPhotosSince(ctx, db.ListPhotosSinceParams{
@@ -69,6 +75,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		SyncCursor:  since,
 	})
 	if err != nil {
+		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync pull query photos failed")
 		return nil, fmt.Errorf("sync pull photos: %w", err)
 	}
 
@@ -109,5 +116,33 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		}
 	}
 	out.Body.Cursor = cursor
+
+	chgProject, chgPlan, chgRoom, chgWall, chgPhoto := 0, 0, 0, 0, 0
+	for _, c := range changes {
+		switch c.EntityType {
+		case synctypes.EntityTypeProject:
+			chgProject++
+		case synctypes.EntityTypePlan:
+			chgPlan++
+		case synctypes.EntityTypeRoom:
+			chgRoom++
+		case synctypes.EntityTypeWall:
+			chgWall++
+		case synctypes.EntityTypePhoto:
+			chgPhoto++
+		}
+	}
+	log.Info().
+		Str("workspaceId", wsID).
+		Int64("since", since).
+		Int64("cursor", cursor).
+		Int("changes", len(changes)).
+		Int("chg_project", chgProject).
+		Int("chg_plan", chgPlan).
+		Int("chg_room", chgRoom).
+		Int("chg_wall", chgWall).
+		Int("chg_photo", chgPhoto).
+		Msg("sync pull completed")
+
 	return out, nil
 }
