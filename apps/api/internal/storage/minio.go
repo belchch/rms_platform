@@ -23,11 +23,6 @@ type objectPresigner interface {
 	PresignHeader(ctx context.Context, method, bucketName, objectName string, expires time.Duration, reqParams url.Values, extraHeaders http.Header) (*url.URL, error)
 }
 
-type PhotoUploader interface {
-	EnsureBucket(ctx context.Context) error
-	PresignedPut(ctx context.Context, photoID, contentType string) (uploadURL string, headers map[string]string, expiresAtMs int64, err error)
-}
-
 type MinioPhotoStore struct {
 	admin      bucketAdmin
 	presign    objectPresigner
@@ -49,6 +44,10 @@ func ParseMinIOEndpoint(raw string) (host string, secure bool, err error) {
 	}
 	if u.Host == "" {
 		return "", false, fmt.Errorf("endpoint missing host")
+	}
+	pathOnly := strings.TrimSuffix(u.Path, "/")
+	if pathOnly != "" {
+		return "", false, fmt.Errorf("endpoint URL must not include a path (got %q)", u.Path)
 	}
 	switch strings.ToLower(u.Scheme) {
 	case "https":
@@ -114,6 +113,10 @@ func (s *MinioPhotoStore) EnsureBucket(ctx context.Context) error {
 		return nil
 	}
 	if err := s.admin.MakeBucket(ctx, s.bucket, minio.MakeBucketOptions{}); err != nil {
+		e := minio.ToErrorResponse(err)
+		if e.Code == "BucketAlreadyOwnedByYou" || e.Code == "BucketAlreadyExists" {
+			return nil
+		}
 		return fmt.Errorf("make bucket: %w", err)
 	}
 	return nil
@@ -124,12 +127,12 @@ func (s *MinioPhotoStore) PresignedPut(ctx context.Context, photoID, contentType
 	h := http.Header{}
 	h.Set("Content-Type", contentType)
 
+	expiresAtMs := time.Now().Add(s.presignTTL).UnixMilli()
 	u, err := s.presign.PresignHeader(ctx, http.MethodPut, s.bucket, objectKey, s.presignTTL, nil, h)
 	if err != nil {
 		return "", nil, 0, fmt.Errorf("presign put %s/%s: %w", s.bucket, objectKey, err)
 	}
 
-	expiresAtMs := time.Now().Add(s.presignTTL).UnixMilli()
 	headers := map[string]string{"Content-Type": contentType}
 	return u.String(), headers, expiresAtMs, nil
 }

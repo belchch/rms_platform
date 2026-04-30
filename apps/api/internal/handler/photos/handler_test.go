@@ -13,21 +13,28 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/humatest"
+	"github.com/google/uuid"
 
 	"github.com/belchch/rms_platform/api/internal/jwtutil"
 	"github.com/belchch/rms_platform/api/internal/middleware"
 )
 
-const samplePhotoUUID = "550e8400-e29b-41d4-a716-446655440000"
+var samplePhotoUUID string
 
-type stubPhotoStore struct {
+func init() {
+	id, err := uuid.NewV7()
+	if err != nil {
+		panic(err)
+	}
+	samplePhotoUUID = id.String()
+}
+
+type stubPhotoPresigner struct {
 	uploadURL string
 	err       error
 }
 
-func (s *stubPhotoStore) EnsureBucket(context.Context) error { return nil }
-
-func (s *stubPhotoStore) PresignedPut(_ context.Context, photoID, contentType string) (string, map[string]string, int64, error) {
+func (s *stubPhotoPresigner) PresignedPut(_ context.Context, photoID, contentType string) (string, map[string]string, int64, error) {
 	if s.err != nil {
 		return "", nil, 0, s.err
 	}
@@ -43,7 +50,7 @@ func TestUploadUrl_happyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := "http://localhost:9000/test-bucket/photos/"
-	store := &stubPhotoStore{uploadURL: base}
+	store := &stubPhotoPresigner{uploadURL: base}
 
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
@@ -87,7 +94,7 @@ func TestUploadUrl_happyPath(t *testing.T) {
 
 func TestUploadUrl_requiresAuth(t *testing.T) {
 	t.Parallel()
-	store := &stubPhotoStore{uploadURL: "http://x/"}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, "01234567890123456789012345678901"))
 	Register(api, store)
@@ -110,7 +117,7 @@ func TestUploadUrl_emptyPhotoId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &stubPhotoStore{uploadURL: "http://x/"}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
@@ -134,12 +141,36 @@ func TestUploadUrl_invalidPhotoId(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &stubPhotoStore{uploadURL: "http://x/"}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
 
 	body := `{"photoId":"not-a-uuid","contentType":"image/jpeg"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestUploadUrl_rejectsNonV7UUID(t *testing.T) {
+	t.Parallel()
+	const secret = "01234567890123456789012345678901"
+	tok, err := jwtutil.IssueAccessToken("user-1", "ws-42", secret, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
+	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
+	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
+	Register(api, store)
+
+	body := `{"photoId":"550e8400-e29b-41d4-a716-446655440000","contentType":"image/jpeg"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Content-Type", "application/json")
@@ -158,7 +189,7 @@ func TestUploadUrl_emptyContentType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &stubPhotoStore{uploadURL: "http://x/"}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
@@ -182,7 +213,7 @@ func TestUploadUrl_disallowedContentType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &stubPhotoStore{uploadURL: "http://x/"}
+	store := &stubPhotoPresigner{uploadURL: "http://x/"}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
@@ -206,7 +237,7 @@ func TestUploadUrl_storageError(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &stubPhotoStore{err: errors.New("s3 unavailable")}
+	store := &stubPhotoPresigner{err: errors.New("s3 unavailable")}
 	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)

@@ -263,7 +263,10 @@ export interface components {
             errors: components["schemas"]["PushError"][];
         };
         PhotoUploadUrlRequest: {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Client-generated UUID v7 (same convention as other sync entities)
+             */
             photoId: string;
             contentType: string;
         };

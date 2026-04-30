@@ -8,14 +8,18 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-
-	"github.com/belchch/rms_platform/api/internal/storage"
 )
+
+type PhotoPresigner interface {
+	PresignedPut(ctx context.Context, photoID, contentType string) (uploadURL string, headers map[string]string, expiresAtMs int64, err error)
+}
 
 var allowedPhotoContentTypes = map[string]struct{}{
 	"image/jpeg": {},
 	"image/png":  {},
 	"image/webp": {},
+	"image/heic": {},
+	"image/heif": {},
 }
 
 type UploadUrlInput struct {
@@ -35,11 +39,11 @@ type UploadUrlOutput struct {
 }
 
 type Handler struct {
-	store storage.PhotoUploader
+	presigner PhotoPresigner
 }
 
-func Register(api huma.API, store storage.PhotoUploader) {
-	h := &Handler{store: store}
+func Register(api huma.API, presigner PhotoPresigner) {
+	h := &Handler{presigner: presigner}
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
 		Method:      http.MethodPost,
@@ -60,6 +64,9 @@ func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*Upload
 	if err != nil {
 		return nil, huma.Error422UnprocessableEntity("photoId must be a valid UUID")
 	}
+	if parsedID.Version() != 7 {
+		return nil, huma.Error422UnprocessableEntity("photoId must be a UUID v7")
+	}
 	photoID = parsedID.String()
 
 	if contentType == "" {
@@ -69,7 +76,7 @@ func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*Upload
 		return nil, huma.Error422UnprocessableEntity("contentType must be an allowed image type")
 	}
 
-	uploadURL, headers, expiresAtMs, err := h.store.PresignedPut(ctx, photoID, contentType)
+	uploadURL, headers, expiresAtMs, err := h.presigner.PresignedPut(ctx, photoID, contentType)
 	if err != nil {
 		log.Error().Err(err).Msg("presigned photo upload URL")
 		return nil, huma.Error500InternalServerError("failed to create upload URL")

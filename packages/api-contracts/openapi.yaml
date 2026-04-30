@@ -457,6 +457,7 @@ components:
         photoId:
           type: string
           format: uuid
+          description: Client-generated UUID v7 (same convention as other sync entities)
         contentType:
           type: string
 

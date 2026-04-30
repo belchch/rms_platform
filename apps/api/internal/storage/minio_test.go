@@ -48,7 +48,7 @@ func TestParseMinIOEndpoint(t *testing.T) {
 		{raw: "https://minio.example.com", wantHost: "minio.example.com", wantTLS: true},
 		{raw: "minio:9000", wantHost: "minio:9000", wantTLS: false},
 		{raw: "", wantErr: true},
-		{raw: "ftp://x", wantErr: true},
+		{raw: "https://host/minio", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.raw, func(t *testing.T) {
