@@ -100,10 +100,6 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		return a.EntityID < b.EntityID
 	})
 
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("sync pull commit: %w", err)
-	}
-
 	out := &PullOutput{}
 	out.Body.Changes = changes
 	cursor := since

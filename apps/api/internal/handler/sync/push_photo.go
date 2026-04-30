@@ -50,6 +50,19 @@ func workspaceFromPhotoableOwner(ctx context.Context, q *db.Queries, ownerType, 
 	}
 }
 
+func entityTypeFromPhotoOwner(ownerType string) (synctypes.EntityType, error) {
+	switch ownerType {
+	case "project":
+		return synctypes.EntityTypeProject, nil
+	case "room":
+		return synctypes.EntityTypeRoom, nil
+	case "wall":
+		return synctypes.EntityTypeWall, nil
+	default:
+		return "", fmt.Errorf("%w: %s", errUnsupportedOwnerType, ownerType)
+	}
+}
+
 func listPhotosSinceRowToPhoto(r db.ListPhotosSinceRow) db.Photo {
 	return db.Photo{
 		ID:          r.ID,
@@ -67,8 +80,12 @@ func listPhotosSinceRowToPhoto(r db.ListPhotosSinceRow) db.Photo {
 }
 
 func photoSnapshotFromOwnerAndPhoto(ownerType, ownerID string, p db.Photo) (synctypes.EntitySnapshot, error) {
+	pt, err := entityTypeFromPhotoOwner(ownerType)
+	if err != nil {
+		return synctypes.EntitySnapshot{}, err
+	}
 	pl := synctypes.PhotoPayload{
-		ParentType:  synctypes.EntityType(ownerType),
+		ParentType:  pt,
 		ParentID:    ownerID,
 		ContentType: p.ContentType,
 		Name:        p.Name,
