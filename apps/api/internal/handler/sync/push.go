@@ -21,19 +21,19 @@ type handler struct {
 	pool *pgxpool.Pool
 }
 
-func pgTimeToEpochMs(t pgtype.Timestamptz) int64 {
-	if !t.Valid {
-		return 0
-	}
-	return t.Time.UnixMilli()
-}
-
 func epochMsToTimestamptz(ms int64) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.UnixMilli(ms), Valid: true}
 }
 
-func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) bool {
-	return clientMs > pgTimeToEpochMs(serverUpdated)
+// lwwWins reports whether the client version beats the server version.
+// It returns an error when serverUpdated.Valid is false — the schema enforces
+// NOT NULL on updated_at, so an invalid value indicates a storage invariant
+// violation that must not be silently treated as a client win.
+func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) (bool, error) {
+	if !serverUpdated.Valid {
+		return false, fmt.Errorf("server updated_at is invalid: NOT NULL invariant violated")
+	}
+	return clientMs > serverUpdated.Time.UnixMilli(), nil
 }
 
 func workspaceOfPlan(ctx context.Context, q *db.Queries, planID string) (string, error) {
@@ -98,6 +98,9 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 	out.Body.Errors = []synctypes.PushError{}
 	out.Body.Cursor = 0
 
+	// DB infrastructure failures (Begin, Commit, savepoint ops) are the only
+	// cases where POST /sync/push returns a non-200 status. All entity-level
+	// conflicts and validation errors are reported in the 200 body (errors[]/conflicts[]).
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("sync push begin: %w", err)

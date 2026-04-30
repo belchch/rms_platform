@@ -80,7 +80,11 @@ func (h *handler) pushWallUpsert(ctx context.Context, q *db.Queries, wsID string
 	if ve := validateWorkspace(wws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := wallSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)
@@ -113,7 +117,11 @@ func (h *handler) pushWallDelete(ctx context.Context, q *db.Queries, wsID string
 	if ve := validateWorkspace(wws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := wallSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)

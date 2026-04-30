@@ -84,7 +84,11 @@ func (h *handler) pushRoomUpsert(ctx context.Context, q *db.Queries, wsID string
 	if ve := validateWorkspace(rws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := roomSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)
@@ -118,7 +122,11 @@ func (h *handler) pushRoomDelete(ctx context.Context, q *db.Queries, wsID string
 	if ve := validateWorkspace(rws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := roomSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)

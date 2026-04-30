@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
@@ -18,6 +19,12 @@ import (
 // value is not a recognized entity type. Callers use errors.Is to distinguish
 // client validation failures from internal DB errors.
 var errUnsupportedParentType = errors.New("unsupported parentType")
+
+// errUnsupportedOwnerType is returned by workspaceFromPhotoableOwner when the
+// owner_type stored in the DB is not a recognized value. Unlike errUnsupportedParentType,
+// this signals a storage integrity violation (the value was accepted at write time but
+// is now unrecognized), not a client mistake.
+var errUnsupportedOwnerType = errors.New("unsupported owner_type in storage")
 
 func workspaceOfPhoto(ctx context.Context, q *db.Queries, photoID string) (string, error) {
 	ph, err := q.GetPhotoByID(ctx, photoID)
@@ -44,7 +51,7 @@ func workspaceFromPhotoableOwner(ctx context.Context, q *db.Queries, ownerType, 
 	case "wall":
 		return workspaceOfWall(ctx, q, ownerID)
 	default:
-		return "", fmt.Errorf("owner_type")
+		return "", fmt.Errorf("%w: %s", errUnsupportedOwnerType, ownerType)
 	}
 }
 
@@ -163,6 +170,10 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 	}
 
 	phWS, err := workspaceOfPhoto(ctx, q, row.ID)
+	if errors.Is(err, errUnsupportedOwnerType) {
+		log.Error().Err(err).Str("entityId", op.EntityID).Msg("photo owner_type invariant violated")
+		return pushStepResult{pushError: &synctypes.PushError{Reason: "dataIntegrity", Message: "photo parent type is not recognized"}}
+	}
 	if err != nil {
 		return internalPushErr(op, err)
 	}
@@ -182,7 +193,11 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "parentMismatch", ServerVersion: snap}}
 	}
 
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := photoSnapshot(ctx, q, row)
 		if err != nil {
 			return internalPushErr(op, err)
@@ -214,13 +229,21 @@ func (h *handler) pushPhotoDelete(ctx context.Context, q *db.Queries, wsID strin
 		return internalPushErr(op, err)
 	}
 	phWS, err := workspaceOfPhoto(ctx, q, row.ID)
+	if errors.Is(err, errUnsupportedOwnerType) {
+		log.Error().Err(err).Str("entityId", op.EntityID).Msg("photo owner_type invariant violated")
+		return pushStepResult{pushError: &synctypes.PushError{Reason: "dataIntegrity", Message: "photo parent type is not recognized"}}
+	}
 	if err != nil {
 		return internalPushErr(op, err)
 	}
 	if ve := validateWorkspace(phWS, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := photoSnapshot(ctx, q, row)
 		if err != nil {
 			return internalPushErr(op, err)

@@ -76,7 +76,11 @@ func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID str
 	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := projectSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)
@@ -110,7 +114,11 @@ func (h *handler) pushProjectDelete(ctx context.Context, q *db.Queries, wsID str
 	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := projectSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)

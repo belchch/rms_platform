@@ -88,7 +88,11 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 		return pushStepResult{pushError: ve}
 	}
 
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := planSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)
@@ -124,7 +128,11 @@ func (h *handler) pushPlanDelete(ctx context.Context, q *db.Queries, wsID string
 	if ve := validateWorkspace(pws, wsID); ve != nil {
 		return pushStepResult{pushError: ve}
 	}
-	if !lwwWins(op.ClientUpdatedAt, row.UpdatedAt) {
+	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	if err != nil {
+		return internalPushErr(op, err)
+	}
+	if !wins {
 		snap, err := planSnapshot(row)
 		if err != nil {
 			return internalPushErr(op, err)
