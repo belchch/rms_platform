@@ -1,7 +1,6 @@
 package sync
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -48,7 +47,7 @@ func Register(api huma.API, pool *pgxpool.Pool) {
 		Summary:     "Pull changes from server",
 		Tags:        []string{"sync"},
 		Security:    bearerAuth,
-	}, pull)
+	}, h.pull)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "sync-push",
@@ -58,11 +57,4 @@ func Register(api huma.API, pool *pgxpool.Pool) {
 		Tags:        []string{"sync"},
 		Security:    bearerAuth,
 	}, h.push)
-}
-
-func pull(_ context.Context, _ *PullInput) (*PullOutput, error) {
-	output := &PullOutput{}
-	output.Body.Cursor = 0
-	output.Body.Changes = []synctypes.PullChange{}
-	return output, nil
 }
