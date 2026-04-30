@@ -6,9 +6,17 @@ import (
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/storage"
 )
+
+var allowedPhotoContentTypes = map[string]struct{}{
+	"image/jpeg": {},
+	"image/png":  {},
+	"image/webp": {},
+}
 
 type UploadUrlInput struct {
 	Body struct {
@@ -48,13 +56,23 @@ func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*Upload
 	if photoID == "" {
 		return nil, huma.Error422UnprocessableEntity("photoId must not be empty")
 	}
+	parsedID, err := uuid.Parse(photoID)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity("photoId must be a valid UUID")
+	}
+	photoID = parsedID.String()
+
 	if contentType == "" {
 		return nil, huma.Error422UnprocessableEntity("contentType must not be empty")
+	}
+	if _, ok := allowedPhotoContentTypes[contentType]; !ok {
+		return nil, huma.Error422UnprocessableEntity("contentType must be an allowed image type")
 	}
 
 	uploadURL, headers, expiresAtMs, err := h.store.PresignedPut(ctx, photoID, contentType)
 	if err != nil {
-		return nil, huma.Error500InternalServerError(err.Error())
+		log.Error().Err(err).Msg("presigned photo upload URL")
+		return nil, huma.Error500InternalServerError("failed to create upload URL")
 	}
 
 	output := &UploadUrlOutput{}

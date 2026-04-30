@@ -18,6 +18,8 @@ import (
 	"github.com/belchch/rms_platform/api/internal/middleware"
 )
 
+const samplePhotoUUID = "550e8400-e29b-41d4-a716-446655440000"
+
 type stubPhotoStore struct {
 	uploadURL string
 	err       error
@@ -47,7 +49,7 @@ func TestUploadUrl_happyPath(t *testing.T) {
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
 
-	body := `{"photoId":"01JTEST123456789ABC","contentType":"image/jpeg"}`
+	body := `{"photoId":"` + samplePhotoUUID + `","contentType":"image/jpeg"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Content-Type", "application/json")
@@ -75,7 +77,7 @@ func TestUploadUrl_happyPath(t *testing.T) {
 	if resp.UploadURL == "" {
 		t.Fatal("empty uploadUrl")
 	}
-	if !strings.Contains(resp.UploadURL, "01JTEST123456789ABC") {
+	if !strings.Contains(resp.UploadURL, samplePhotoUUID) {
 		t.Fatalf("uploadUrl %q", resp.UploadURL)
 	}
 	if resp.ExpiresAt <= 1e12 {
@@ -90,7 +92,7 @@ func TestUploadUrl_requiresAuth(t *testing.T) {
 	api.UseMiddleware(middleware.BearerWorkspace(api, "01234567890123456789012345678901"))
 	Register(api, store)
 
-	body := `{"photoId":"01JTEST123456789ABC","contentType":"image/jpeg"}`
+	body := `{"photoId":"` + samplePhotoUUID + `","contentType":"image/jpeg"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", bytes.NewReader([]byte(body)))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -125,6 +127,30 @@ func TestUploadUrl_emptyPhotoId(t *testing.T) {
 	}
 }
 
+func TestUploadUrl_invalidPhotoId(t *testing.T) {
+	t.Parallel()
+	const secret = "01234567890123456789012345678901"
+	tok, err := jwtutil.IssueAccessToken("user-1", "ws-42", secret, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &stubPhotoStore{uploadURL: "http://x/"}
+	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
+	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
+	Register(api, store)
+
+	body := `{"photoId":"not-a-uuid","contentType":"image/jpeg"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestUploadUrl_emptyContentType(t *testing.T) {
 	t.Parallel()
 	const secret = "01234567890123456789012345678901"
@@ -137,7 +163,31 @@ func TestUploadUrl_emptyContentType(t *testing.T) {
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
 
-	body := `{"photoId":"01JTEST123456789ABC","contentType":""}`
+	body := `{"photoId":"` + samplePhotoUUID + `","contentType":""}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestUploadUrl_disallowedContentType(t *testing.T) {
+	t.Parallel()
+	const secret = "01234567890123456789012345678901"
+	tok, err := jwtutil.IssueAccessToken("user-1", "ws-42", secret, 15*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &stubPhotoStore{uploadURL: "http://x/"}
+	router, api := humatest.New(t, huma.DefaultConfig("Test", "0.0.0"))
+	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
+	Register(api, store)
+
+	body := `{"photoId":"` + samplePhotoUUID + `","contentType":"application/octet-stream"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Content-Type", "application/json")
@@ -161,7 +211,7 @@ func TestUploadUrl_storageError(t *testing.T) {
 	api.UseMiddleware(middleware.BearerWorkspace(api, secret))
 	Register(api, store)
 
-	body := `{"photoId":"01JTEST123456789ABC","contentType":"image/jpeg"}`
+	body := `{"photoId":"` + samplePhotoUUID + `","contentType":"image/jpeg"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/upload-url", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+tok)
 	req.Header.Set("Content-Type", "application/json")

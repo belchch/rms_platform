@@ -151,13 +151,10 @@ func (tr *trackingPresign) PresignHeader(_ context.Context, _ string, bucketName
 	return tr.result, nil
 }
 
-func TestNewMinioPhotoStore_validation(t *testing.T) {
+func TestNewMinioPhotoStore_invalidEndpoint(t *testing.T) {
 	t.Parallel()
-	if _, err := NewMinioPhotoStore("http://localhost:9000", "", "", "", ""); err == nil {
-		t.Fatal("expected error for empty bucket")
-	}
-	if _, err := NewMinioPhotoStore("http://localhost:9000", "", "k", "", "b"); err == nil {
-		t.Fatal("expected error for empty secret")
+	if _, err := NewMinioPhotoStore("://bad", "", "k", "s", "b"); err == nil {
+		t.Fatal("expected error")
 	}
 }
 

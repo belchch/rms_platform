@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -52,7 +53,9 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init object storage")
 	}
-	if err := photoStore.EnsureBucket(context.Background()); err != nil {
+	bucketCtx, bucketCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer bucketCancel()
+	if err := photoStore.EnsureBucket(bucketCtx); err != nil {
 		log.Fatal().Err(err).Msg("failed to ensure S3 bucket")
 	}
 

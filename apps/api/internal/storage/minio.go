@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 
@@ -62,13 +61,6 @@ func ParseMinIOEndpoint(raw string) (host string, secure bool, err error) {
 }
 
 func NewMinioPhotoStore(endpoint, publicEndpoint, accessKey, secretKey, bucket string) (*MinioPhotoStore, error) {
-	if bucket == "" {
-		return nil, fmt.Errorf("bucket name is required")
-	}
-	if accessKey == "" || secretKey == "" {
-		return nil, fmt.Errorf("S3 access key and secret key are required")
-	}
-
 	adminHost, adminSecure, err := ParseMinIOEndpoint(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("S3_ENDPOINT: %w", err)
@@ -128,13 +120,13 @@ func (s *MinioPhotoStore) EnsureBucket(ctx context.Context) error {
 }
 
 func (s *MinioPhotoStore) PresignedPut(ctx context.Context, photoID, contentType string) (string, map[string]string, int64, error) {
-	objectKey := path.Join("photos", photoID)
+	objectKey := "photos/" + photoID
 	h := http.Header{}
 	h.Set("Content-Type", contentType)
 
 	u, err := s.presign.PresignHeader(ctx, http.MethodPut, s.bucket, objectKey, s.presignTTL, nil, h)
 	if err != nil {
-		return "", nil, 0, err
+		return "", nil, 0, fmt.Errorf("presign put %s/%s: %w", s.bucket, objectKey, err)
 	}
 
 	expiresAtMs := time.Now().Add(s.presignTTL).UnixMilli()
