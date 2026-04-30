@@ -97,7 +97,7 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 		log.Error().Err(err).Str("workspaceId", wsID).Msg("sync push begin failed")
 		return nil, fmt.Errorf("sync push begin: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := db.New(tx)
 	var maxCursor int64
@@ -115,7 +115,7 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 			res.pushError.ClientOpID = op.ClientOpID
 			out.Body.Errors = append(out.Body.Errors, *res.pushError)
 			if _, rbErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+sp); rbErr != nil {
-				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Msg("sync push rollback savepoint failed")
+				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Str("after", "pushError").Msg("sync push rollback savepoint failed")
 				return nil, fmt.Errorf("sync push rollback savepoint: %w", rbErr)
 			}
 			continue
@@ -124,7 +124,7 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 			res.conflict.ClientOpID = op.ClientOpID
 			out.Body.Conflicts = append(out.Body.Conflicts, *res.conflict)
 			if _, rbErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+sp); rbErr != nil {
-				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Msg("sync push rollback savepoint failed")
+				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Str("after", "conflict").Msg("sync push rollback savepoint failed")
 				return nil, fmt.Errorf("sync push rollback savepoint: %w", rbErr)
 			}
 			continue
@@ -148,12 +148,11 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 
 	out.Body.Cursor = maxCursor
 
-	evt := log.Info()
+	evt := log.Debug()
 	if len(out.Body.Conflicts) > 0 || len(out.Body.Errors) > 0 {
 		evt = log.Warn()
 	}
-	evt.Str("workspaceId", wsID).
-		Int("operations", len(in.Body.Operations)).
+	evt.Int("operations", len(in.Body.Operations)).
 		Int("applied", len(out.Body.Applied)).
 		Int("conflicts", len(out.Body.Conflicts)).
 		Int("errors", len(out.Body.Errors)).
