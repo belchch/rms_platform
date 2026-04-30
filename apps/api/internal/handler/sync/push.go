@@ -25,10 +25,6 @@ func epochMsToTimestamptz(ms int64) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.UnixMilli(ms), Valid: true}
 }
 
-// lwwWins reports whether the client version beats the server version.
-// It returns an error when serverUpdated.Valid is false — the schema enforces
-// NOT NULL on updated_at, so an invalid value indicates a storage invariant
-// violation that must not be silently treated as a client win.
 func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) (bool, error) {
 	if !serverUpdated.Valid {
 		return false, fmt.Errorf("server updated_at is invalid: NOT NULL invariant violated")

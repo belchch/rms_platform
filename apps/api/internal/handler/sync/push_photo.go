@@ -15,15 +15,10 @@ import (
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
-// errUnsupportedParentType is returned by photoParentWorkspace when the parentType
-// value is not a recognized entity type. Callers use errors.Is to distinguish
-// client validation failures from internal DB errors.
 var errUnsupportedParentType = errors.New("unsupported parentType")
 
-// errUnsupportedOwnerType is returned by workspaceFromPhotoableOwner when the
-// owner_type stored in the DB is not a recognized value. Unlike errUnsupportedParentType,
-// this signals a storage integrity violation (the value was accepted at write time but
-// is now unrecognized), not a client mistake.
+// errUnsupportedOwnerType signals a storage integrity violation: owner_type was persisted
+// but is no longer recognized. Distinct from errUnsupportedParentType (client mistake).
 var errUnsupportedOwnerType = errors.New("unsupported owner_type in storage")
 
 func workspaceOfPhoto(ctx context.Context, q *db.Queries, photoID string) (string, error) {
