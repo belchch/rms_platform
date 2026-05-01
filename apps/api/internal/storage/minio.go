@@ -92,6 +92,17 @@ func NewMinioPhotoStore(endpoint, publicEndpoint, accessKey, secretKey, bucket s
 	}, nil
 }
 
+func NewMinioPhotoStoreWithPresignTTL(endpoint, publicEndpoint, accessKey, secretKey, bucket string, presignTTL time.Duration) (*MinioPhotoStore, error) {
+	store, err := NewMinioPhotoStore(endpoint, publicEndpoint, accessKey, secretKey, bucket)
+	if err != nil {
+		return nil, err
+	}
+	if presignTTL > 0 {
+		store.presignTTL = presignTTL
+	}
+	return store, nil
+}
+
 func NewMinioPhotoStoreWithDeps(admin bucketAdmin, presign objectPresigner, bucket string, ttl time.Duration) *MinioPhotoStore {
 	if ttl <= 0 {
 		ttl = defaultPresignedTTL
