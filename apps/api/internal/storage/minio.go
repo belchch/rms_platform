@@ -139,6 +139,9 @@ func (s *MinioPhotoStore) PresignedPut(ctx context.Context, photoID, contentType
 	h.Set("Content-Type", contentType)
 
 	expiresAtMs := time.Now().Add(s.presignTTL).UnixMilli()
+	// Presigned PUT does not cap object size in the signature; Content-Length-range
+	// needs an S3 POST policy (different client flow). Operators should enforce size
+	// at the bucket or infra layer (server limits, bucket policy, WAF).
 	u, err := s.presign.PresignHeader(ctx, http.MethodPut, s.bucket, objectKey, s.presignTTL, nil, h)
 	if err != nil {
 		return "", nil, 0, fmt.Errorf("presign put %s/%s: %w", s.bucket, objectKey, err)
