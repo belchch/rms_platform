@@ -1,0 +1,17 @@
+---
+description: React web UI uses shadcn/ui + Tailwind; standard patterns for tables, forms, dialogs, toasts.
+alwaysApply: true
+---
+
+# React — shadcn/ui + Tailwind
+
+When building UI in `apps/web/`:
+
+- **Tables** → `@tanstack/react-table` + shadcn `Table` primitives (`components/ui/table.tsx`). Do not hand-roll raw `<table>` layouts outside those primitives.
+- **Forms** → `react-hook-form` + `zod` + `@hookform/resolvers` + shadcn `Form` (`components/ui/form.tsx`). Avoid ad-hoc `useState` per field for production forms.
+- **File upload** → `react-dropzone` or shadcn patterns built on it (when added). Follow the photo pipeline: `apiClient.requestPhotoUploadUrl` → `PUT` to storage → `/sync/push`; never multipart uploads through the API server.
+- **Dialogs** → shadcn `Dialog` / `AlertDialog`.
+- **Notifications** → `sonner` via `components/ui/sonner.tsx` (`toast()`).
+- **Loading** → skeleton/patterns from shadcn or simple `aria-busy` + disabled buttons.
+- **Styling** → Tailwind utility classes and `cn()` from `@/lib/utils`. Do not use raw hex colors in TSX; use CSS variables / `@theme` tokens in `src/styles/globals.css`.
+- **Top-level shell** → plain semantic layout (`header`, `main`) or route layouts under `src/layouts/` — no Quasar-style mega wrappers.

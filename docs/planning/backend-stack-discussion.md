@@ -220,12 +220,12 @@
 ### Практики, дающие AI‑cycle‑выигрыш (независимо от стека)
 
 1. **Один `just check`** — форматирование + компиляция + линтинг + быстрые тесты, бинарный выход. Уже заложено в `global-check-commands.mdc`.
-2. **Schema‑first + codegen** везде: sqlc (SQL→Go), OpenAPI (Go→TS‑клиент Quasar).
+2. **Schema‑first + codegen** везде: sqlc (SQL→Go), OpenAPI (TS‑типы для web через `openapi-typescript`).
 3. **Rules/skills под ваш стек:** `go-error-handling.mdc`, `sqlc-queries.mdc`, `http-handlers.mdc` и т. п. (по образцу существующих `.cursor/rules/`).
 4. **Testcontainers, не моки** — агент хуже пишет корректные моки, чем использует реальные зависимости.
 5. **Малые модули** — файлы до ~500 строк, один домен на файл.
 6. **Документация `docs/planning/`** — агент читает перед генерацией, принимает согласованные решения. Не забрасывать эту практику при переходе на backend.
-7. **OpenAPI как якорь синхронизации** между backend и Quasar‑frontend.
+7. **OpenAPI как якорь синхронизации** между backend и web‑клиентом (`packages/api-contracts`).
 
 ---
 
@@ -240,26 +240,41 @@
 | **БД** | **PostgreSQL 16+** | JSONB для `Plan.payloadJson`, UUID v7 генерируется на клиенте (sprint-1 мобилки §4.2) |
 | **Файловое хранилище** | **S3‑совместимое** (MinIO локально, Cloudflare R2 / Backblaze B2 в проде) + **pre‑signed URL** (двухфазная загрузка фото) | Закрывает открытый вопрос sprint-1 мобилки §10: multipart vs pre‑signed |
 | **Auth** | JWT access 15 мин + refresh 30 дней (sprint-1 мобилки §8), refresh‑таблица в БД, cookie‑session для web | `golang-jwt/jwt/v5` |
-| **Web** | **Vue 3 + Quasar 2 + Pinia + openapi‑typescript + Vitest** | Оcознанный выбор инженера; AI‑fluency компенсируется готовыми компонентами + rules |
-| **Монорепо** | pnpm workspace: `apps/api/` (Go), `apps/web/` (Quasar), `packages/api-contracts/` (OpenAPI + generated TS) | Атомарные рефакторинги backend+web |
-| **Деплой** | Docker → Fly.io / Railway на MVP; Hetzner Cloud + Coolify при росте | Один бинарник Go (15–30 МБ) + `dist/spa/` от Quasar отдаётся тем же контейнером |
+| **Web** | **React 19 + Vite + TanStack Router + TanStack Query + Zustand + Tailwind v4 + shadcn/ui + openapi‑typescript + Vitest** | Пересмотр май 2026: портфолио, AI‑fluency, гибкость UI под estimator |
+| **Монорепо** | pnpm workspace: `apps/api/` (Go), `apps/web/` (React), `packages/api-contracts/` (OpenAPI + generated TS) | Атомарные рефакторинги backend+web |
+| **Деплой** | Docker → Fly.io / Railway на MVP; Hetzner Cloud + Coolify при росте | Один бинарник Go (15–30 МБ) + статика `apps/web/dist/` от того же контейнера (или CDN) |
 | **Очередь** | Redis + asynq или Postgres‑based **River** | Для фоновой генерации PDF |
 | **Observability** | `zerolog` → JSON stdout; OpenTelemetry опционально потом | — |
 
 ### Почему именно так
 
 1. **Go + sqlc** даёт самый чистый AI‑agent‑loop (быстрый compile + явные ошибки + compile‑time SQL‑safety) при сохранении строгой типизации и надёжности.
-2. **Vue + Quasar** — сознательное предпочтение инженера; Quasar компенсирует меньшую AI‑fluency готовыми компонентами под estimator‑UI (q‑table, q‑uploader, q‑form).
-3. **OpenAPI‑codegen** связывает два стека в одну типизированную систему — изменение контракта на backend мгновенно показывается на web как TS‑ошибка.
+2. **React + shadcn + Tailwind** (пересмотр май 2026, см. ниже) — мейнстримный стек для web‑админки: выше AI‑fluency у ассистента, проще найм и портфолио; типизированный слой HTTP остаётся через `openapi.yaml` → `types.gen.ts` и единый `src/api/client.ts`.
+3. **OpenAPI → TS‑типы** связывает backend и web — изменение контракта ломает сборку web при правках полей в `paths`/`components`.
 4. **PostgreSQL + S3** — стандарт отрасли, снимают класс вопросов про offline‑sync и бинарники.
 5. **Typst для PDF** — современное элегантное решение, компенсирует единственный weak point Go‑стека.
+
+### Пересмотр web‑стека (май 2026)
+
+Изначально в волне 4 был выбран **Vue 3 + Quasar** как быстрый путь к готовым компонентам (таблицы, формы). После появления минимального прототипа решено **снести `apps/web/` и собрать заново на React 19 + Vite + TanStack Router + Zustand + Tailwind v4 + shadcn/ui**.
+
+**Причины:**
+
+| Фактор | Решение |
+|---|---|
+| Портфолио и найм | React + shadcn распознаются ревьюерами по умолчанию сильнее, чем Quasar |
+| AI‑агент | Cursor/Claude стабильнее генерируют идиоматичный React/TanStack/shadcn |
+| UI estimator | Таблицы смет и отчётов проще собирать на TanStack Table + shadcn без ограничений `q-table` |
+| Объём кода | Ранний web‑прототип не содержал ценной логики; проще scaffold с нуля, чем миграция |
+
+Инвариант для монорепо не меняется: **`openapi.yaml` остаётся источником контракта**, web продолжает потреблять `packages/api-contracts/types.gen.ts`.
 
 ### Серьёзная альтернатива №1 — **TS + Elysia + Bun + Drizzle**
 
 Не победила, но **близко**. Выбрать её, если:
-- **End‑to‑end типы backend↔Quasar через Eden Treaty важнее, чем compile‑time SQL‑safety** от sqlc.
+- **End‑to‑end типы backend↔web через Eden Treaty важнее, чем compile‑time SQL‑safety** от sqlc.
 - Вы ожидаете **много итераций на контракте API** между backend и web (быстрое меню полей, перестановки dto), и готовы платить шагом «OpenAPI регенерация» — Eden это устраняет.
-- Хотите **один язык во всём проекте** (TS на backend, TS на Quasar‑web, можно даже shared‑пакеты с бизнес‑логикой валидации итогов сметы).
+- Хотите **один язык во всём проекте** (TS на backend, TS на React‑web, можно даже shared‑пакеты с бизнес‑логикой валидации итогов сметы).
 
 Стек в этом случае: **Bun 1.2+ + Elysia + Drizzle ORM + drizzle‑kit (миграции) + TypeBox (валидация+OpenAPI) + Puppeteer (PDF) + exceljs (Excel) + BullMQ/Bun‑queue (фон) + pg (драйвер Postgres)**. Деплой: `bun build --compile` → один бинарник.
 
@@ -270,18 +285,18 @@
 | Триггер | Действие |
 |---|---|
 | После этапа 4 (sync) Go‑разработка ощутимо медленнее ожидаемого | Переоценить переход на **Ktor + Exposed + Flyway** (не на Spring) |
-| OpenAPI‑шаг «регенерировать TS‑клиент для Quasar» часто забывается/пропускается агентом | Серьёзно рассмотреть переход на **Elysia + Bun** — Eden Treaty снимает этот шаг |
+| OpenAPI‑шаг «перегенерировать `types.gen.ts` после правки контракта» часто забывается агентом | Автоматизировать в CI или перейти на **Elysia + Bun** — Eden Treaty снимает часть расхождений |
 | Typst‑шаблоны окажутся ограничивающими для дизайна смет | Переход на `chromedp` (HTML/CSS → PDF через headless Chrome) — ценой +300 МБ к образу |
 | Появится потребность в тяжёлом ML (OCR сканов, классификация фото) | Вынести ML‑часть в отдельный Python/FastAPI‑микросервис рядом с Go‑монолитом |
-| Shared‑types между backend и web станут регулярной болью | Перейти на **TS + Elysia + Bun** (не на Fastify) — монорепо с Vue + Eden |
-| Команда вырастет и Vue‑найм станет узким местом | Миграция web на React + shadcn + Next.js в SPA‑режиме |
+| Shared‑types между backend и web станут регулярной болью | Перейти на **TS + Elysia + Bun** (не на Fastify) — монорепо с React + Eden |
+| Команда вырастет и стек web станет узким местом | Уже на React + shadcn; при необходимости SSR — **Next.js** или **TanStack Start** без смены экосистемы компонентов |
 
 ---
 
 ## 8. Открытые вопросы (к этому документу)
 
 - **Формат хранения Typst‑шаблонов сметы** (`.typ`‑файлы в репо vs в БД для динамического редактирования) — решать на этапе PDF‑экспорта в будущем sprint-N (за рамками sprint 1).
-- **Связь web‑деплоя с backend‑деплоем**: один контейнер (Go отдаёт статику Quasar) vs два (Quasar на Cloudflare Pages, Go на Fly.io). Решение — по готовности этапа 7 (Estimator v0 на web).
+- **Связь web‑деплоя с backend‑деплоем**: один контейнер (Go отдаёт статику из `apps/web/dist`) vs два (фронт на Cloudflare Pages, Go на Fly.io). Решение — по готовности этапа 7 (Estimator v0 на web).
 - **Monorepo‑инструмент**: pnpm workspace достаточно или нужен Turborepo для кеша билдов. Решить при первом появлении frontend‑пакета.
 - **Schema‑first vs code‑first для OpenAPI**: huma предлагает code‑first (Go‑типы → spec); альтернатива — писать `openapi.yaml` руками и генерировать Go‑stubs через `oapi-codegen`. Решить при старте этапа 4 (REST API).
 - **Kill‑switch для Python**: нужен ли изначально запасной Python‑микросервис под возможные ML‑фичи, или поднимать когда (и если) потребуется. По умолчанию — по факту.

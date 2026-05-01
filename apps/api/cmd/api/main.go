@@ -25,7 +25,7 @@ import (
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Logger = log.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -61,6 +61,7 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recover)
+	router.Use(middleware.ErrorLogger)
 	router.Use(middleware.Logger)
 
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
