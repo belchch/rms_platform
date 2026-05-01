@@ -79,7 +79,7 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 		return nil, fmt.Errorf("sync pull photos: %w", err)
 	}
 
-	var changes []synctypes.PullChange
+	changes := make([]synctypes.PullChange, 0)
 	if changes, err = pullAppendProjects(changes, projects); err != nil {
 		return nil, err
 	}
