@@ -3,9 +3,24 @@ package photos
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
+
+type PhotoPresigner interface {
+	PresignedPut(ctx context.Context, photoID, contentType string) (uploadURL string, headers map[string]string, expiresAtMs int64, err error)
+}
+
+var allowedPhotoContentTypes = map[string]struct{}{
+	"image/jpeg": {},
+	"image/png":  {},
+	"image/webp": {},
+	"image/heic": {},
+	"image/heif": {},
+}
 
 type UploadUrlInput struct {
 	Body struct {
@@ -23,7 +38,12 @@ type UploadUrlOutput struct {
 	}
 }
 
-func Register(api huma.API) {
+type Handler struct {
+	presigner PhotoPresigner
+}
+
+func Register(api huma.API, presigner PhotoPresigner) {
+	h := &Handler{presigner: presigner}
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
 		Method:      http.MethodPost,
@@ -31,14 +51,41 @@ func Register(api huma.API) {
 		Summary:     "Get pre-signed PUT URL for photo upload",
 		Tags:        []string{"photos"},
 		Security:    []map[string][]string{{"bearerAuth": {}}},
-	}, uploadUrl)
+	}, h.uploadUrl)
 }
 
-func uploadUrl(_ context.Context, _ *UploadUrlInput) (*UploadUrlOutput, error) {
+func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*UploadUrlOutput, error) {
+	photoID := strings.TrimSpace(input.Body.PhotoID)
+	contentType := strings.TrimSpace(input.Body.ContentType)
+	if photoID == "" {
+		return nil, huma.Error422UnprocessableEntity("photoId must not be empty")
+	}
+	parsedID, err := uuid.Parse(photoID)
+	if err != nil {
+		return nil, huma.Error422UnprocessableEntity("photoId must be a valid UUID")
+	}
+	if parsedID.Version() != 7 {
+		return nil, huma.Error422UnprocessableEntity("photoId must be a UUID v7")
+	}
+	photoID = parsedID.String()
+
+	if contentType == "" {
+		return nil, huma.Error422UnprocessableEntity("contentType must not be empty")
+	}
+	if _, ok := allowedPhotoContentTypes[contentType]; !ok {
+		return nil, huma.Error422UnprocessableEntity("contentType must be an allowed image type")
+	}
+
+	uploadURL, headers, expiresAtMs, err := h.presigner.PresignedPut(ctx, photoID, contentType)
+	if err != nil {
+		log.Error().Err(err).Msg("presigned photo upload URL")
+		return nil, huma.Error500InternalServerError("failed to create upload URL")
+	}
+
 	output := &UploadUrlOutput{}
-	output.Body.UploadURL = "todo"
-	output.Body.Method = "PUT"
-	output.Body.Headers = map[string]string{}
-	output.Body.ExpiresAt = 0
+	output.Body.UploadURL = uploadURL
+	output.Body.Method = http.MethodPut
+	output.Body.Headers = headers
+	output.Body.ExpiresAt = expiresAtMs
 	return output, nil
 }

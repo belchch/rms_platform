@@ -263,7 +263,10 @@ export interface components {
             errors: components["schemas"]["PushError"][];
         };
         PhotoUploadUrlRequest: {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Client-generated UUID v7 (same convention as other sync entities)
+             */
             photoId: string;
             contentType: string;
         };
@@ -445,6 +448,24 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            /** @description Invalid request body */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
 }

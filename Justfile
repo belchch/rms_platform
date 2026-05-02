@@ -17,9 +17,13 @@ _dev-parallel:
 
 # Проверить всё: сборка + линт + тесты
 check:
-    cd {{api_dir}} && go build ./...
-    cd {{api_dir}} && go vet ./...
-    cd {{web_dir}} && pnpm vitest run
+	cd {{api_dir}} && go build ./...
+	cd {{api_dir}} && go vet ./...
+	cd {{web_dir}} && pnpm vitest run
+
+# Интеграционные тесты API (Docker, -tags=integration)
+check-integration:
+	cd {{api_dir}} && go test -tags=integration -count=1 -timeout=15m ./...
 
 # Сгенерировать sqlc-код и TS-типы из OpenAPI
 api-gen:

@@ -138,6 +138,18 @@ paths:
                 $ref: "#/components/schemas/PhotoUploadUrlResponse"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
 components:
   securitySchemes:
@@ -445,6 +457,7 @@ components:
         photoId:
           type: string
           format: uuid
+          description: Client-generated UUID v7 (same convention as other sync entities)
         contentType:
           type: string
 
