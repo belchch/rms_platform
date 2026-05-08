@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
@@ -19,11 +20,12 @@ import (
 	photoshandler "github.com/belchch/rms_platform/api/internal/handler/photos"
 	synchandler "github.com/belchch/rms_platform/api/internal/handler/sync"
 	"github.com/belchch/rms_platform/api/internal/middleware"
+	"github.com/belchch/rms_platform/api/internal/storage"
 )
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	log.Logger = log.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -41,8 +43,25 @@ func main() {
 	}
 	log.Info().Msg("database connected")
 
+	photoStore, err := storage.NewMinioPhotoStore(
+		cfg.S3Endpoint,
+		cfg.S3PublicEndpoint,
+		cfg.S3AccessKey,
+		cfg.S3SecretKey,
+		cfg.S3Bucket,
+	)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to init object storage")
+	}
+	bucketCtx, bucketCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer bucketCancel()
+	if err := photoStore.EnsureBucket(bucketCtx); err != nil {
+		log.Fatal().Err(err).Msg("failed to ensure S3 bucket")
+	}
+
 	router := chi.NewRouter()
 	router.Use(middleware.Recover)
+	router.Use(middleware.ErrorLogger)
 	router.Use(middleware.Logger)
 
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +76,7 @@ func main() {
 
 	authhandler.Register(api, queries, pool, cfg.JWTSecret)
 	synchandler.Register(api, pool)
-	photoshandler.Register(api)
+	photoshandler.Register(api, photoStore)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	log.Info().Str("addr", addr).Msg("starting server")

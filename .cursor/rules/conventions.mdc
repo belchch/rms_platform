@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Конвенции RMS
 
-Эти соглашения нельзя вывести из общих best practices — они зафиксированы в `docs/knowledge/sync-protocol.md`, `docs/planning/sprint-1.md`, `docs/planning/backend-stack-discussion.md`. Узкие правила (`huma`, `sqlc-queries`, `goose-dev-migrations`, `hybrid-plan-model`, `vue-quasar-components`, `no-hacks`) дополняют этот файл — не дублируй их.
+Эти соглашения нельзя вывести из общих best practices — они зафиксированы в `docs/knowledge/sync-protocol.md`, `docs/planning/sprint-1.md`, `docs/planning/backend-stack-discussion.md`. Узкие правила (`huma`, `sqlc-queries`, `goose-dev-migrations`, `hybrid-plan-model`, `react-shadcn-components`, `no-hacks`) дополняют этот файл — не дублируй их.
 
 ## ID
 
@@ -63,7 +63,8 @@ alwaysApply: true
 
 ## Web ↔ API
 
-- Запросы к API только через сгенерированный клиент из `packages/api-contracts`. Прямой `axios.get('/api/v1/...')`, `fetch('/api/v1/...')`, ручные `interface ProjectDto` в `apps/web/src/` — баг.
+- HTTP к API только через `apps/web/src/api/client.ts`: методы вызывают `fetch`, типы запросов/ответов берутся из `paths` / `components` в `@rms/api-contracts/types.gen.ts`. Прямой `fetch('/api/v1/...')`, `axios`, ручные DTO в `apps/web/src/` минуя этот слой — баг.
+- Запросы с кэшем/ретраями — через `@tanstack/react-query`, но мутации и endpoint-вызовы всё равно проксируйте в `api/client.ts` (query hooks только вызывают эти функции).
 - Web и API лежат в одном монорепо именно для атомарных рефакторингов контракта; пользоваться этим.
 
 ## Фото
@@ -77,5 +78,5 @@ alwaysApply: true
 - Inline-SQL через `db.Query("SELECT … " + var)` (см. `sqlc-queries`).
 - Прямую запись в `http.ResponseWriter` из huma-handler'а (см. `go-http-handlers`).
 - `panic` в request-path (см. `go-error-handling`).
-- Кастомные обёртки над `<table>`, `<form>`, `<dialog>` в Vue (см. `vue-quasar-components`).
+- Обход правил UI-слоя для React web (см. `react-shadcn-components`).
 - Хак-фиксы без named invariant (см. `no-hacks`).

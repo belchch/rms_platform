@@ -1,6 +1,8 @@
 # Go
 apps/api/bin/
 apps/api/tmp/
+apps/api/coverage.out
+apps/api/coverage_filtered.out
 
 # Node
 node_modules/

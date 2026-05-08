@@ -18,14 +18,17 @@ type PushRequest =
 type PushResponse =
   paths["/api/v1/sync/push"]["post"]["responses"]["200"]["content"]["application/json"];
 
-type PhotoUploadResponse =
-  paths["/api/v1/photos"]["post"]["responses"]["201"]["content"]["application/json"];
+type PhotoUploadUrlRequest =
+  paths["/api/v1/photos/upload-url"]["post"]["requestBody"]["content"]["application/json"];
+
+type PhotoUploadUrlResponse =
+  paths["/api/v1/photos/upload-url"]["post"]["responses"]["200"]["content"]["application/json"];
 
 const BASE_URL = "";
 
-async function request<T>(
+async function requestJson<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: {
@@ -36,8 +39,24 @@ async function request<T>(
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message ?? "Request failed");
+    const raw = await response.json().catch(() => null);
+    let message = response.statusText;
+    if (
+      raw &&
+      typeof raw === "object" &&
+      "detail" in raw &&
+      typeof (raw as { detail?: unknown }).detail === "string"
+    ) {
+      message = (raw as { detail: string }).detail;
+    } else if (
+      raw &&
+      typeof raw === "object" &&
+      "message" in raw &&
+      typeof (raw as { message?: unknown }).message === "string"
+    ) {
+      message = (raw as { message: string }).message;
+    }
+    throw new Error(message || "Request failed");
   }
 
   return response.json() as Promise<T>;
@@ -49,45 +68,41 @@ function authHeaders(token: string): HeadersInit {
 
 export const apiClient = {
   async signIn(body: SignInRequest): Promise<TokenPair> {
-    return request<TokenPair>("/api/v1/auth/sign-in", {
+    return requestJson<TokenPair>("/api/v1/auth/sign-in", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
 
   async refreshToken(body: RefreshRequest): Promise<TokenPair> {
-    return request<TokenPair>("/api/v1/auth/refresh", {
+    return requestJson<TokenPair>("/api/v1/auth/refresh", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
 
-  async syncPull(token: string, since: number = 0): Promise<PullResponse> {
-    return request<PullResponse>(`/api/v1/sync/pull?since=${since}`, {
+  async syncPull(token: string, since = 0): Promise<PullResponse> {
+    return requestJson<PullResponse>(`/api/v1/sync/pull?since=${since}`, {
       headers: authHeaders(token),
     });
   },
 
   async syncPush(token: string, body: PushRequest): Promise<PushResponse> {
-    return request<PushResponse>("/api/v1/sync/push", {
+    return requestJson<PushResponse>("/api/v1/sync/push", {
       method: "POST",
       headers: authHeaders(token),
       body: JSON.stringify(body),
     });
   },
 
-  async uploadPhoto(token: string, file: File): Promise<PhotoUploadResponse> {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/v1/photos", {
+  async requestPhotoUploadUrl(
+    token: string,
+    body: PhotoUploadUrlRequest,
+  ): Promise<PhotoUploadUrlResponse> {
+    return requestJson<PhotoUploadUrlResponse>("/api/v1/photos/upload-url", {
       method: "POST",
       headers: authHeaders(token),
-      body: formData,
+      body: JSON.stringify(body),
     });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: response.statusText }));
-      throw new Error(error.message ?? "Upload failed");
-    }
-    return response.json() as Promise<PhotoUploadResponse>;
   },
 };

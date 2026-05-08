@@ -1,6 +1,6 @@
 # Sprint 1 — план первого спринта бэкенда
 
-> **Это sprint 1, а не весь MVP.** Документ описывает **минимально необходимый slice бэкенда**, который нужен мобильному клиенту (`rms_mobile`) для прохождения своих этапов 4 и 5 из [`rms_mobile/docs/planning/sprint-1.md`](../../../AndroidStudioProjects/rms_mobile/docs/planning/sprint-1.md). Estimator (price lists, cost rules, Typst-экспорт), web-клиент (Quasar), RBAC, multi-tenant, фоновая синхронизация, метрики — **за рамками sprint 1**. Полный объём MVP и причины выбора стека — в [`backend-stack-discussion.md`](backend-stack-discussion.md).
+> **Это sprint 1, а не весь MVP.** Документ описывает **минимально необходимый slice бэкенда**, который нужен мобильному клиенту (`rms_mobile`) для прохождения своих этапов 4 и 5 из [`rms_mobile/docs/planning/sprint-1.md`](../../../AndroidStudioProjects/rms_mobile/docs/planning/sprint-1.md). Estimator (price lists, cost rules, Typst-экспорт), web-клиент (React), RBAC, multi-tenant, фоновая синхронизация, метрики — **за рамками sprint 1**. Полный объём MVP и причины выбора стека — в [`backend-stack-discussion.md`](backend-stack-discussion.md).
 >
 > Документ — опора для постановки бэкенд-тикетов параллельно со sprint 1 мобилки, не ТЗ на одну задачу.
 
@@ -123,7 +123,7 @@
 | Фича | Почему не в sprint 1 |
 |------|---------------------|
 | Estimator (price lists, cost rules, Typst-экспорт) | Мобилка в sprint 1 не использует, это отдельная вертикаль; см. [`backend-stack-discussion.md`](backend-stack-discussion.md) §2 (волна 2) |
-| Web-клиент (Quasar) | Мобилка в sprint 1 — единственный клиент; см. [`backend-stack-discussion.md`](backend-stack-discussion.md) §2 (волна 3) |
+| Web-клиент (React) | Мобилка в sprint 1 — единственный клиент; см. [`backend-stack-discussion.md`](backend-stack-discussion.md) §2 (волна 3) |
 | Фоновая синхронизация (workmanager / background_fetch) | Это этап 6 sprint 1 **мобилки**, но он помечен как optional и после 4+5; бэкенду от него ничего дополнительно не нужно |
 | RBAC, multi-tenant | В sprint 1 — один пользователь на один workspace, без ролей |
 | Rate limit, метрики (Prometheus), структурные алерты | Для dev-инфры избыточно, добавим в sprint-N когда появится staging |
