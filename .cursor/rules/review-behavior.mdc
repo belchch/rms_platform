@@ -1,113 +1,111 @@
 ---
-description: Чек-лист код-ревью под специфику RMS — что проверять помимо общих best practices.
+description: RMS-specific code review checklist — what to check beyond general best practices.
 ---
 
-# Код-ревью — RMS-специфичный чек-лист
+# Code review — RMS-specific checklist
 
-Этот файл подключай в режиме ревью (когда триггерится скилл `pr-review-stage1` / `pr-review-stage2` или пользователь просит «сделай ревью PR»). Здесь — только то, что нельзя вывести из общих принципов: проектные инварианты из `docs/knowledge/` и `docs/planning/`. Общие вещи (читаемость, тесты, безопасность) проверяй параллельно по своему усмотрению.
+Apply this file in review mode (when the `pr-review-stage1` / `pr-review-stage2` skill is triggered or the user requests a PR review). Covers only what cannot be inferred from general principles: project invariants from `docs/knowledge/` and `docs/planning/`. Check general concerns (readability, tests, security) in parallel at your discretion.
 
-Источник правды для каждого пункта — `docs/knowledge/sync-protocol.md`, `docs/knowledge/hybrid-plan-model.md`, `docs/knowledge/offline-first-sync.md`, `docs/planning/sprint-1.md`. Если правка осознанно меняет инвариант — это требует апдейта соответствующего документа в том же PR.
+Source of truth for each item: `docs/knowledge/sync-protocol.md`, `docs/knowledge/hybrid-plan-model.md`, `docs/knowledge/offline-first-sync.md`, `docs/planning/sprint-1.md`. If a change intentionally modifies an invariant — the corresponding document must be updated in the same PR.
 
-## 1. Sync-протокол
+## 1. Sync protocol
 
-| Что искать | Почему баг |
+| What to look for | Why it is a bug |
 |---|---|
-| `uuid.New()` / `gen_random_uuid()` / `RETURNING id` для project, plan, room, wall, photo | ID — эхо клиентского UUID v7, см. sync-protocol §2 |
-| Сравнение в LWW с `time.Now()`, `now()`, `current_timestamp` вместо `clientUpdatedAt` | LWW сравнивает клиентский timestamp, а не время прихода |
-| `c.JSON(409, …)`, `huma.Status409Conflict` в handler `/sync/push` | Push всегда отвечает 200 partial-success; конфликты — в `conflicts[]` |
-| Возврат `errors[]` без машиночитаемого `reason` (`validation \| notFound \| forbidden \| unknown`) | Контракт `ErrorItem` фиксирован |
-| `DELETE FROM <sync-таблица>` в SQL/Go | Только soft-delete: `SET deleted_at = now()` |
-| Pull-запрос с `WHERE deleted_at IS NULL` | Pull обязан отдавать tombstones |
-| SELECT по sync-таблице без `WHERE workspace_id = $N` | Утечка данных между workspace |
-| `SyncCursor` инкрементируется в Go-коде или через `EXTRACT(EPOCH …)` | Только через триггер на SEQUENCE `sync_cursor_seq` |
-| Использование `clientOpId` как идентификатора сущности (или наоборот) | Это разные поля; `clientOpId` уникален на операцию |
+| `uuid.New()` / `gen_random_uuid()` / `RETURNING id` for project, plan, room, wall, photo | ID is an echo of the client UUID v7, see sync-protocol §2 |
+| LWW comparison against `time.Now()`, `now()`, `current_timestamp` instead of `clientUpdatedAt` | LWW compares the client timestamp, not arrival time |
+| `c.JSON(409, …)`, `huma.Status409Conflict` in the `/sync/push` handler | Push always responds 200 partial-success; conflicts go in `conflicts[]` |
+| `errors[]` returned without a machine-readable `reason` (`validation \| notFound \| forbidden \| unknown`) | The `ErrorItem` contract is fixed |
+| `DELETE FROM <sync table>` in SQL/Go | Soft-delete only: `SET deleted_at = now()` |
+| Pull query with `WHERE deleted_at IS NULL` | Pull must return tombstones |
+| SELECT on a sync table without `WHERE workspace_id = $N` | Data leak between workspaces |
+| `SyncCursor` incremented in Go code or via `EXTRACT(EPOCH …)` | Only via trigger on SEQUENCE `sync_cursor_seq` |
+| `clientOpId` used as an entity identifier (or vice versa) | These are different fields; `clientOpId` is unique per operation |
 
-## 2. Schema / миграции
+## 2. Schema / migrations
 
-- Новый файл `002_*.sql`, `003_*.sql` до релиза → нарушение `goose-dev-migrations`. Изменения только в `001_init.sql` + `just db-reset`.
-- Новая sync-таблица **обязана** иметь: `id TEXT PRIMARY KEY`, `workspace_id TEXT NOT NULL REFERENCES workspaces(id)`, `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `sync_cursor BIGINT NOT NULL DEFAULT nextval('sync_cursor_seq')`, `deleted_at TIMESTAMPTZ`, и триггер `BEFORE INSERT OR UPDATE` на бамп `sync_cursor`.
-- ID-колонка `UUID` вместо `TEXT` для синк-сущности → баг (под клиентский UUID v7).
-- Любая правка `apps/api/internal/db/*.go` или `packages/api-contracts/types.gen.ts` руками → баг (это сгенерированные файлы).
+- New file `002_*.sql`, `003_*.sql` before release → violates `goose-dev-migrations`. Changes only in `001_init.sql` + `just db-reset`.
+- A new sync table **must** have: `id TEXT PRIMARY KEY`, `workspace_id TEXT NOT NULL REFERENCES workspaces(id)`, `updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `sync_cursor BIGINT NOT NULL DEFAULT nextval('sync_cursor_seq')`, `deleted_at TIMESTAMPTZ`, and a `BEFORE INSERT OR UPDATE` trigger to bump `sync_cursor`.
+- `UUID` column instead of `TEXT` for a sync entity id → bug (must accommodate client UUID v7).
+- Any manual edit to `apps/api/internal/db/*.go` or `packages/api-contracts/types.gen.ts` → bug (generated files).
 
 ## 3. Plan / Room / Wall
 
-- Имена комнат, материалы стен, любые метаданные внутри `Plan.payloadJson` → нарушение гибридной модели. Должны лежать в `rooms` / `walls`.
-- Координаты, длины, графовые связи углов в реляционных колонках → нарушение модели.
-- Серверный endpoint, отдающий «полный план со всеми комнатами и стенами одним JSON» → нарушение: склейка только на клиенте.
-- Plan/room/wall, синхронизируемые как один агрегат (один `sync_cursor` на все три) → нарушение.
+- Room names, wall materials, any metadata inside `Plan.payloadJson` → violates hybrid model. Must live in `rooms` / `walls`.
+- Coordinates, lengths, corner graph edges in relational columns → violates the model.
+- Server endpoint returning a "full plan with all rooms and walls as one JSON" → violation: merging is client-only.
+- Plan/room/wall synchronized as one aggregate (one `sync_cursor` for all three) → violation.
 
 ## 4. Auth
 
-- `workspaceId` берётся из тела запроса, query-string, path-параметра → баг. Только из JWT через middleware.
-- Handler сам парсит `Authorization`-заголовок или вызывает `jwt.Parse(...)` → баг, должна быть middleware.
-- В ответе `/auth/sign-in` или `/auth/refresh` появилось поле `expiresIn` → баг (контракт фиксирован: TTL читается из claim `exp`).
-- Refresh-токен хранится plaintext в `refresh_tokens` → баг (хэш argon2/bcrypt).
+- `workspaceId` taken from request body, query string, or path parameter → bug. Only from JWT via middleware.
+- Handler parses the `Authorization` header itself or calls `jwt.Parse(...)` → bug; must go through middleware.
+- Field `expiresIn` appears in `/auth/sign-in` or `/auth/refresh` response → bug (contract is fixed: TTL is read from `exp` claim).
+- Refresh token stored as plaintext in `refresh_tokens` → bug (must be argon2/bcrypt hash).
 
 ## 5. Photo upload
 
-- Endpoint, парсящий `multipart/form-data` для фото → нарушение (только pre-signed PUT).
-- `photoId` генерируется на сервере (например, в `POST /photos/upload-url`) → баг, клиент задаёт.
-- Любая обработка изображений на сервере (resize, thumbnail, EXIF-strip) в sprint 1 → out-of-scope.
+- Endpoint parsing `multipart/form-data` for photos → violation (pre-signed PUT only).
+- `photoId` generated on the server (e.g. in `POST /photos/upload-url`) → bug; client sets it.
+- Any image processing on the server (resize, thumbnail, EXIF-strip) in sprint 1 → out of scope.
 
 ## 6. Web ↔ API
 
-- В `apps/web/src/` есть `interface ProjectDto`, `interface PullResponse` и т.п., повторяющие типы из `types.gen.ts` → баг (single source of truth — `types.gen.ts`).
-- Прямой `fetch('/api/v1/...')`, `axios.get('/api/v1/...')` минуя обёртку в `src/api/` → баг.
-- Изменён `openapi.yaml` без `just api-gen` в том же коммите → баг (TS-клиент устарел).
-- Изменён `openapi.yaml` без синхронной правки `apps/api/internal/sync/types.go` → баг (Go-типы рассинхронизированы; codegen на Go нет).
+- `interface ProjectDto`, `interface PullResponse` etc. in `apps/web/src/` duplicating types from `types.gen.ts` → bug (single source of truth is `types.gen.ts`).
+- Direct `fetch('/api/v1/...')`, `axios.get('/api/v1/...')` bypassing the wrapper in `src/api/` → bug.
+- `openapi.yaml` changed without `just api-gen` in the same commit → bug (TS client is stale).
+- `openapi.yaml` changed without syncing `apps/api/internal/sync/types.go` → bug (Go types out of sync; no Go codegen).
 
-## 7. Архитектурные слои
+## 7. Architectural layers
 
-- Использование `http.Error(w, ...)` в middleware или хендлерах → баг (нарушает OpenAPI контракт, возвращая text/plain вместо JSON). Ошибки должны отдаваться через Huma.
-- SQL-строки в Go-handler без соответствующего файла в `apps/api/queries/` → нарушение `sqlc-queries`.
-- `pgx.Conn`/`pgxpool.Pool` напрямую в handler минуя сгенерированный `db.Queries` → нарушение слоёв.
-- Прямая запись в `http.ResponseWriter` внутри huma-handler → нарушение `go-http-handlers`.
-- `panic` в request-path → нарушение `go-error-handling`.
-- Два пути записи одной сущности (handler + фоновый воркер пишут в одну таблицу через разные SQL) → нарушение `no-hacks`, single source of truth.
-- Boolean-флаги (`isSyncing`, `loaded`, `initialized`) без описанного контракта в комментарии или документации → нарушение `no-hacks`.
-- Логика обработки нескольких sync-сущностей (project, plan, room, wall, photo) в одном файле handler'а вместо отдельных файлов по одной сущности → архитектурный запах. Правило: `internal/handler/sync/push.go` содержит только shared utilities и `applyPushOperation`-диспетчер; логика каждой сущности — в отдельном `push_<entity>.go`. Это распространяется и на pull: если появится аналогичное разрастание, схема та же.
+- `http.Error(w, ...)` in middleware or handlers → bug (violates OpenAPI contract, returns text/plain instead of JSON). Errors must go through Huma.
+- SQL strings in a Go handler without a corresponding file in `apps/api/queries/` → violates `sqlc-queries`.
+- `pgx.Conn`/`pgxpool.Pool` directly in a handler bypassing the generated `db.Queries` → violates the layer contract.
+- Direct write to `http.ResponseWriter` inside a huma handler → violates `go-http-handlers`.
+- `panic` in request path → violates `go-error-handling`.
+- Two write paths for the same entity (handler + background worker both writing to the same table via different SQL) → violates `no-hacks`, single source of truth.
+- Boolean flags (`isSyncing`, `loaded`, `initialized`) without a documented contract in a comment or doc → violates `no-hacks`.
+- Logic for multiple sync entities (project, plan, room, wall, photo) in one handler file instead of separate files per entity → architectural smell. Rule: `internal/handler/sync/push.go` contains only shared utilities and the `applyPushOperation` dispatcher; each entity's logic lives in a separate `push_<entity>.go`. Same applies to pull if it grows similarly.
 
-## 8. Breaking changes для клиентов
+## 8. Breaking changes for clients
 
-`docs/review.md` фиксирует это как пункт 1; разворачиваю:
+- Existing field removed from an OpenAPI response → break.
+- Existing field type changed (e.g. `int32` → `int64`, `string` → `enum`) → break.
+- Existing request field made `required` (was `optional`) → break for old clients.
+- Validation tightened (`maxLength`, `pattern`) for an existing field without agreement → potential break.
+- `EntityType` literal removed or renamed (`project | plan | room | wall | photo`) → break. Adding new values is fine.
+- `reason` literal in `ConflictItem` / `ErrorItem` removed or renamed → break.
+- `cursor` format changed (e.g. was `int64`, now `string`) → break.
 
-- Удалено существующее поле в OpenAPI-ответе → break.
-- Изменён тип существующего поля (например, `int32` → `int64`, `string` → `enum`) → break.
-- Существующее поле request-а стало `required` (раньше было `optional`) → break для старых клиентов.
-- Ужесточение валидации (`maxLength`, `pattern`) для уже существующего поля без согласования → потенциальный break.
-- Удалён или переименован `EntityType`-литерал (`project | plan | room | wall | photo`) → break. Расширение допустимо.
-- Удалён или переименован `reason`-литерал в `ConflictItem` / `ErrorItem` → break.
-- Изменён формат `cursor` (например, был `int64`, стал `string`) → break.
+If a PR breaks any of the above — require an API versioning discussion in a comment.
 
-Если PR ломает что-то из этого — требуй обсуждения версионирования API в комментарии.
+## 9. Documentation
 
-## 9. Документация
+- PR changes the sync contract but `docs/knowledge/sync-protocol.md` is not updated → bug.
+- PR changes the `plans`/`rooms`/`walls` schema or geometry model but `docs/knowledge/hybrid-plan-model.md` is not updated → bug.
+- PR closes an "open question" from `docs/planning/sprint-1.md` §5 but does not mark it resolved → incomplete.
 
-- PR меняет sync-контракт, но `docs/knowledge/sync-protocol.md` не обновлён → баг.
-- PR меняет схему таблиц `plans`/`rooms`/`walls` или модель геометрии, но `docs/knowledge/hybrid-plan-model.md` не обновлён → баг.
-- PR закрывает «открытый вопрос» из `docs/planning/sprint-1.md` §5, но не отметил его как решённый → недоделка.
+## 10. Architecture Decision Records (ADR)
 
-## 10. Архитектурные решения (ADR)
+The decision log lives in `docs/adr/` (index in `docs/adr/README.md`). During review verify the PR against the ADR list from two directions:
 
-Каталог принятых решений — `docs/adr/` (индекс в `docs/adr/README.md`). При ревью обязательно сверяй PR со списком ADR и проверяй два направления:
+**1. PR relies on an existing ADR — it must be respected.**
 
-**1. PR опирается на существующее ADR — оно должно соблюдаться.**
-
-| Что искать | На какое ADR смотреть |
+| What to look for | Which ADR |
 |---|---|
-| Изменения в `Justfile` рецептах `check`, `check-coverage`, `_api-coverage-threshold`; новые тестовые файлы с/без `//go:build integration`; правка переменной `api_coverage_min_pct`; добавление путей в фильтр coverage | [`0001-testing-baseline.md`](../docs/adr/0001-testing-baseline.md) |
+| Changes to `Justfile` recipes `check`, `check-coverage`, `_api-coverage-threshold`; new test files with/without `//go:build integration`; edits to `api_coverage_min_pct`; adding paths to the coverage filter | [`0001-testing-baseline.md`](../docs/adr/0001-testing-baseline.md) |
 
-Если PR противоречит решению из ADR (например, тест с зависимостью от Postgres без build-тега, или понижен порог `api_coverage_min_pct` без объяснения) — это баг. Либо приводи код в соответствие, либо в том же PR обновляй ADR с новым «Статус» и причиной смены решения.
+If a PR contradicts an ADR decision (e.g. a test with a Postgres dependency lacking the build tag, or `api_coverage_min_pct` lowered without explanation) — that is a bug. Either bring the code into compliance, or update the ADR in the same PR with a new Status and reason.
 
-**2. PR вносит архитектурно значимое решение, но ADR на него нет.**
+**2. PR introduces an architecturally significant decision but no ADR exists.**
 
-Признаки, что решение требует ADR (а не просто кода):
+Signs that a decision requires an ADR (not just code):
 
-- Меняется или вводится **сквозной механизм**, влияющий на несколько слоёв (новый способ авторизации, кеширования, очередей, инвалидации, фоновых задач).
-- Вводится **новая внешняя зависимость** (БД, брокер, объектное хранилище, runtime) или меняется существующая на альтернативу.
-- Закрепляется **инвариант или контракт**, который дальше будут обязаны соблюдать другие PR (формат ID, формат времени, правила soft-delete, единый порог в CI).
-- Решается **развилка с trade-off**, где у альтернатив есть смысл, и нужно зафиксировать, почему выбрали именно эту (например, pre-signed PUT vs multipart, sqlc vs ORM, hybrid Plan vs нормализованная схема).
+- A **cross-cutting mechanism** is added or changed affecting multiple layers (new auth, caching, queue, invalidation, background job approach).
+- A **new external dependency** is introduced (DB, broker, object storage, runtime) or an existing one is replaced.
+- An **invariant or contract** is established that future PRs must respect (ID format, time format, soft-delete rules, shared CI threshold).
+- A **trade-off fork** is resolved where alternatives have merit and the choice must be recorded (e.g. pre-signed PUT vs multipart, sqlc vs ORM, hybrid Plan vs normalized schema).
 
-Если такие признаки есть, а нового файла в `docs/adr/` в PR нет — требуй добавить ADR в этом же PR. Иначе через месяц никто не вспомнит, почему так сделано.
+If these signals are present and no new file in `docs/adr/` is in the PR — require an ADR in the same PR. Otherwise nobody will remember why this decision was made a month later.
 
-ADR — короткий: **Статус**, **Контекст**, **Решение**, **Последствия**. Без копий гайдов и философии — это уходит в `docs/knowledge/`.
+ADR is short: **Status**, **Context**, **Decision**, **Consequences**. No copied guides or philosophy — that goes in `docs/knowledge/`.

@@ -1,27 +1,27 @@
 ---
-description: До стабилизации схемы не пишем инкрементальные миграции — только db-reset.
+description: Until schema stabilizes, no incremental migrations — only db-reset.
 alwaysApply: true
 ---
 
-# goose — стратегия миграций (dev)
+# goose — migration strategy (dev)
 
-До выхода в production **не создаём новые файлы миграций**. При любом изменении схемы:
+Before going to production **do not create new migration files**. For any schema change:
 
-1. Отредактировать `apps/api/migrations/001_init.sql` напрямую.
-2. Сбросить и пересоздать dev-БД:
+1. Edit `apps/api/migrations/001_init.sql` directly.
+2. Reset and recreate the dev database:
 
 ```bash
 just db-reset
 ```
 
-Это выполняет `goose down-to 0 && goose up`.
+This runs `goose down-to 0 && goose up`.
 
-## Когда переходить на инкрементальные миграции
+## When to switch to incremental migrations
 
-Когда проект выходит в beta/production и данные нельзя терять. До этого — только пересоздание.
+When the project reaches beta/production and data cannot be lost. Until then — only full recreate.
 
-## Что НЕ делать
+## What NOT to do
 
-- Не создавать `002_...sql`, `003_...sql` на этапе разработки.
-- Не писать `ALTER TABLE` в отдельных файлах — менять схему в `001_init.sql`.
-- Не коммитить `001_init.sql` без проверки что `just db-reset` проходит без ошибок.
+- Do not create `002_...sql`, `003_...sql` during development.
+- Do not write `ALTER TABLE` in separate files — change the schema in `001_init.sql`.
+- Do not commit `001_init.sql` without verifying that `just db-reset` completes without errors.
