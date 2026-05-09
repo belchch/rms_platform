@@ -30,7 +30,7 @@ func projectSnapshot(p db.Project) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func (h *handler) pushProject(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushProject(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
 		return h.pushProjectDelete(ctx, q, wsID, op)
@@ -41,7 +41,7 @@ func (h *handler) pushProject(ctx context.Context, q *db.Queries, wsID string, o
 	}
 }
 
-func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushProjectUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	var payload synctypes.ProjectPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid project payload"}}
@@ -103,7 +103,7 @@ func (h *handler) pushProjectUpsert(ctx context.Context, q *db.Queries, wsID str
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
 
-func (h *handler) pushProjectDelete(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushProjectDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	row, err := q.GetProjectByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}

@@ -28,7 +28,7 @@ func planSnapshot(p db.Plan) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func (h *handler) pushPlan(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPlan(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
 		return h.pushPlanDelete(ctx, q, wsID, op)
@@ -39,7 +39,7 @@ func (h *handler) pushPlan(ctx context.Context, q *db.Queries, wsID string, op s
 	}
 }
 
-func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPlanUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	var payload synctypes.PlanPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid plan payload"}}
@@ -113,7 +113,7 @@ func (h *handler) pushPlanUpsert(ctx context.Context, q *db.Queries, wsID string
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
 
-func (h *handler) pushPlanDelete(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPlanDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	row, err := q.GetPlanByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}

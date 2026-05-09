@@ -27,7 +27,7 @@ func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) (bool, error) {
 	return clientMs > serverUpdated.Time.UnixMilli(), nil
 }
 
-func workspaceOfPlan(ctx context.Context, q *db.Queries, planID string) (string, error) {
+func workspaceOfPlan(ctx context.Context, q db.Querier, planID string) (string, error) {
 	pl, err := q.GetPlanByID(ctx, planID)
 	if err != nil {
 		return "", err
@@ -39,7 +39,7 @@ func workspaceOfPlan(ctx context.Context, q *db.Queries, planID string) (string,
 	return p.WorkspaceID, nil
 }
 
-func workspaceOfRoom(ctx context.Context, q *db.Queries, roomID string) (string, error) {
+func workspaceOfRoom(ctx context.Context, q db.Querier, roomID string) (string, error) {
 	r, err := q.GetRoomByID(ctx, roomID)
 	if err != nil {
 		return "", err
@@ -47,7 +47,7 @@ func workspaceOfRoom(ctx context.Context, q *db.Queries, roomID string) (string,
 	return workspaceOfPlan(ctx, q, r.PlanID)
 }
 
-func workspaceOfWall(ctx context.Context, q *db.Queries, wallID string) (string, error) {
+func workspaceOfWall(ctx context.Context, q db.Querier, wallID string) (string, error) {
 	w, err := q.GetWallByID(ctx, wallID)
 	if err != nil {
 		return "", err
@@ -162,7 +162,7 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 	return out, nil
 }
 
-func (h *handler) applyPushOperation(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) applyPushOperation(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.EntityType {
 	case synctypes.EntityTypeProject:
 		return h.pushProject(ctx, q, wsID, op)

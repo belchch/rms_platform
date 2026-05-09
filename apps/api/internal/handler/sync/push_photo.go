@@ -21,7 +21,7 @@ var errUnsupportedParentType = errors.New("unsupported parentType")
 // but is no longer recognized. Distinct from errUnsupportedParentType (client mistake).
 var errUnsupportedOwnerType = errors.New("unsupported owner_type in storage")
 
-func workspaceOfPhoto(ctx context.Context, q *db.Queries, photoID string) (string, error) {
+func workspaceOfPhoto(ctx context.Context, q db.Querier, photoID string) (string, error) {
 	ph, err := q.GetPhotoByID(ctx, photoID)
 	if err != nil {
 		return "", err
@@ -33,7 +33,7 @@ func workspaceOfPhoto(ctx context.Context, q *db.Queries, photoID string) (strin
 	return workspaceFromPhotoableOwner(ctx, q, pa.OwnerType, pa.OwnerID)
 }
 
-func workspaceFromPhotoableOwner(ctx context.Context, q *db.Queries, ownerType, ownerID string) (string, error) {
+func workspaceFromPhotoableOwner(ctx context.Context, q db.Querier, ownerType, ownerID string) (string, error) {
 	switch ownerType {
 	case "project":
 		p, err := q.GetProjectByID(ctx, ownerID)
@@ -106,7 +106,7 @@ func photoSnapshotFromOwnerAndPhoto(ownerType, ownerID string, p db.Photo) (sync
 	}, nil
 }
 
-func photoSnapshot(ctx context.Context, q *db.Queries, p db.Photo) (synctypes.EntitySnapshot, error) {
+func photoSnapshot(ctx context.Context, q db.Querier, p db.Photo) (synctypes.EntitySnapshot, error) {
 	pa, err := q.GetPhotoableByID(ctx, p.PhotoableID)
 	if err != nil {
 		return synctypes.EntitySnapshot{}, err
@@ -118,7 +118,7 @@ func photoSnapshotFromPullRow(r db.ListPhotosSinceRow) (synctypes.EntitySnapshot
 	return photoSnapshotFromOwnerAndPhoto(r.OwnerType, r.OwnerID, listPhotosSinceRowToPhoto(r))
 }
 
-func (h *handler) pushPhoto(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPhoto(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
 		return h.pushPhotoDelete(ctx, q, wsID, op)
@@ -129,7 +129,7 @@ func (h *handler) pushPhoto(ctx context.Context, q *db.Queries, wsID string, op 
 	}
 }
 
-func photoParentWorkspace(ctx context.Context, q *db.Queries, p synctypes.PhotoPayload) (string, error) {
+func photoParentWorkspace(ctx context.Context, q db.Querier, p synctypes.PhotoPayload) (string, error) {
 	switch p.ParentType {
 	case synctypes.EntityTypeProject:
 		row, err := q.GetProjectByID(ctx, p.ParentID)
@@ -146,7 +146,7 @@ func photoParentWorkspace(ctx context.Context, q *db.Queries, p synctypes.PhotoP
 	}
 }
 
-func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	var payload synctypes.PhotoPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid photo payload"}}
@@ -256,7 +256,7 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q *db.Queries, wsID strin
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
 
-func (h *handler) pushPhotoDelete(ctx context.Context, q *db.Queries, wsID string, op synctypes.PushOperation) pushStepResult {
+func (h *handler) pushPhotoDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	row, err := q.GetPhotoByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "photo not found"}}
