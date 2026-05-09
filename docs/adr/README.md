@@ -5,3 +5,4 @@
 ## Список решений
 
 - [ADR 0001: Стратегия и baseline тестирования API](0001-testing-baseline.md)
+- [ADR 0002: Использование интерфейса Querier в handler-слое](0002-querier-seam.md)
