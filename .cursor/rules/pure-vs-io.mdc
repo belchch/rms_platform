@@ -1,0 +1,21 @@
+---
+description: Separate pure logic from I/O — symptom and remedy.
+alwaysApply: true
+---
+
+# Pure logic vs I/O
+
+Decisions (validation, version comparison, conflict resolution, business rules) and I/O (DB, network, file system, time lookups) belong in separate functions.
+
+## Symptom of violation
+
+You cannot exercise a branch in a unit test without spinning up infrastructure. If reproducing "rule X rejected the input" requires a real database or network — the decision and the I/O are fused.
+
+## Remedy
+
+Extract the decision into a pure function that takes plain values and returns a result. The caller owns I/O and passes results in. The orchestrator stays integration-tested; the decision becomes unit-testable.
+
+## When not to extract
+
+- Decision is a single expression at one call site; a test would only restate the operator.
+- Function is pure orchestration with no branching beyond error propagation.

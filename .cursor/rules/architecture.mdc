@@ -118,3 +118,4 @@ Breaking the generation pipeline is forbidden. When changing a source — update
 - Direct `fetch('/api/v1/...')` or hand-rolled TS response interface in `apps/web/` bypassing `src/api/client.ts`.
 - Inline SQL in a Go handler without a file in `apps/api/queries/`.
 - Writing directly to `http.ResponseWriter` inside a huma handler.
+- Accepting `*db.Queries` in a handler or helper signature — use `db.Querier` instead (see ADR-0002).

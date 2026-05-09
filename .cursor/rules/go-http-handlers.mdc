@@ -32,6 +32,12 @@ func handleFoo(_ context.Context, input *FooInput) (*FooOutput, error) {
 - Register handlers via `huma.Register(api, operation, handlerFunc)` in the package-level `Register(api huma.API)` function.
 - Group handlers by domain in `internal/handler/<domain>/handler.go`.
 
+## DB dependency
+
+- Handlers accept `db.Querier`, **not** `*db.Queries`.
+- `*db.Queries` is constructed exactly once — in `cmd/api/main.go` — and passed into `Register(...)` as a `db.Querier`. Inside a transactional handler, `db.New(tx)` returns `*Queries` which satisfies `Querier` automatically.
+- Accepting `*db.Queries` in a handler signature is a layering violation: it couples the handler to the sqlc concrete type and makes unit testing impossible without a live Postgres.
+
 ## Error Handling & Middleware
 
 - **Never** use `http.Error(w, ...)` in middleware or handlers. It returns `text/plain` which breaks the OpenAPI JSON contract.

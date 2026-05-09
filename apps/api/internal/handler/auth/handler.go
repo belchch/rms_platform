@@ -57,12 +57,12 @@ type RefreshOutput struct {
 }
 
 type handler struct {
-	q         *db.Queries
+	q         db.Querier
 	pool      *pgxpool.Pool
 	jwtSecret string
 }
 
-func Register(api huma.API, q *db.Queries, pool *pgxpool.Pool, jwtSecret string) {
+func Register(api huma.API, q db.Querier, pool *pgxpool.Pool, jwtSecret string) {
 	h := &handler{q: q, pool: pool, jwtSecret: jwtSecret}
 
 	huma.Register(api, huma.Operation{
@@ -145,7 +145,7 @@ func (h *handler) refresh(ctx context.Context, input *RefreshInput) (out *Refres
 		}
 	}()
 
-	qtx := h.q.WithTx(tx)
+	qtx := db.New(tx)
 	row, err := qtx.GetRefreshTokenByHashForUpdate(ctx, hash)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
