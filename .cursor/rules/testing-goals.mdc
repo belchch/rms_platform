@@ -1,0 +1,28 @@
+---
+description: Testing goals in this project — not coverage
+alwaysApply: true
+---
+
+# Testing Goals
+
+Work on tests in this project serves three purposes:
+
+1. **Building Go and software testing skills** — deliberate choices about what, why, and how to test.
+2. **Practicing autonomous AI agent workflows** — tasks are framed so an agent can execute them independently.
+3. **Regression protection** — tests as a safety net, not a reporting tool.
+
+## What is NOT a goal
+
+- **Increasing coverage for its own sake.** Coverage is one metric, not an end goal.
+- Do not propose writing tests with the justification "this will raise coverage to X%".
+- Do not cite coverage thresholds as motivation for writing tests.
+
+## How to pick candidates for testing
+
+Ask these questions:
+
+- What **invariant** does this test protect?
+- What **breaks** without it, and how quickly would someone notice?
+- Is there **non-trivial logic** here that is hard to verify manually?
+
+If there is no clear answer — the test is probably not needed.
