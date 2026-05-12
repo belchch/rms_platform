@@ -26,3 +26,7 @@ Ask these questions:
 - Is there **non-trivial logic** here that is hard to verify manually?
 
 If there is no clear answer — the test is probably not needed.
+
+## Transitional mode
+
+The project is in a **test backfill** phase (ADR-0003). Covering existing critical invariants in `auth` and `sync` takes priority over new feature development. For the full candidate checklist, architecture rules, and exit condition — use the `test-backfill` skill.

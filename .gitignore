@@ -3,6 +3,7 @@ apps/api/bin/
 apps/api/tmp/
 apps/api/coverage.out
 apps/api/coverage_filtered.out
+apps/api/coverage.html
 
 # Node
 node_modules/
