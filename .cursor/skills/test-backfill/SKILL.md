@@ -21,7 +21,7 @@ Accept a candidate if ALL hold:
 1. The invariant fits in one sentence.
 2. Hot path only: `internal/handler/auth`, `internal/handler/sync`, `internal/handler/photos`, `internal/middleware`, `internal/jwtutil`.
 3. There is a pure function (unit test, no mocks) OR an explicit seam (`db.Querier`, `storage.Provider`).
-4. Not on the stop-list: `internal/db/*`, thin mappers, plain DTOs, single-line delegate wrappers.
+4. Not on the stop-list: `internal/db/*`, thin mappers, plain DTOs, single-line delegate wrappers, trivial pure functions whose contract is obvious from reading the code (one `if`-branch, fixed error message, no non-trivial logic).
 
 ## Writing the test
 
@@ -35,7 +35,7 @@ Accept a candidate if ALL hold:
 If a test is impossible without an architectural change (fused I/O + decision logic per `pure-vs-io.mdc`, missing seam), the fix is allowed under these conditions:
 
 - Extract a pure function OR introduce a seam (`db.Querier`-style interface).
-- Open a separate ADR for the change before merging (prior art: ADR-0002 Querier, `time.go` extraction commit `6aec11c`).
+- Open a separate ADR for the change before merging.
 - A structural change without an ADR is a hack under `no-hacks.mdc`.
 - Split the refactor and the test into separate PRs.
 
