@@ -204,3 +204,71 @@ func TestPushProjectUpsert(t *testing.T) {
 		require.Nil(t, res.pushError)
 	})
 }
+
+func TestPushProjectDelete(t *testing.T) {
+	ctx := context.Background()
+	const wsID = "ws-alpha"
+	const entityID = "proj-del-1"
+	serverTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	serverMs := serverTime.UnixMilli()
+	validUpdated := pgtype.Timestamptz{Time: serverTime, Valid: true}
+	h := &handler{}
+
+	t.Run("not found", func(t *testing.T) {
+		q := &fakeProjectPushQuerier{
+			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
+				return db.Project{}, pgx.ErrNoRows
+			},
+		}
+		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+			EntityID:        entityID,
+			ClientUpdatedAt: serverMs + 1,
+		})
+		require.NotNil(t, res.pushError)
+		require.Equal(t, "notFound", res.pushError.Reason)
+	})
+
+	t.Run("forbidden", func(t *testing.T) {
+		q := &fakeProjectPushQuerier{
+			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
+				return db.Project{WorkspaceID: "ws-other", UpdatedAt: validUpdated}, nil
+			},
+		}
+		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+			EntityID:        entityID,
+			ClientUpdatedAt: serverMs + 1,
+		})
+		require.Equal(t, "forbidden", res.pushError.Reason)
+	})
+
+	t.Run("stale", func(t *testing.T) {
+		q := &fakeProjectPushQuerier{
+			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
+				return db.Project{WorkspaceID: wsID, UpdatedAt: validUpdated}, nil
+			},
+		}
+		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+			EntityID:        entityID,
+			ClientUpdatedAt: serverMs,
+		})
+		require.Equal(t, "stale", res.conflict.Reason)
+	})
+
+	t.Run("applied", func(t *testing.T) {
+		q := &fakeProjectPushQuerier{
+			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
+				return db.Project{WorkspaceID: wsID, UpdatedAt: validUpdated}, nil
+			},
+			softDeleteProject: func(ctx context.Context, arg db.SoftDeleteProjectParams) (db.Project, error) {
+				require.Equal(t, entityID, arg.ID)
+				return db.Project{SyncCursor: 31}, nil
+			},
+		}
+		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+			EntityID:        entityID,
+			ClientUpdatedAt: serverMs + 1,
+		})
+		require.True(t, res.applied)
+		require.Equal(t, int64(31), res.cursor)
+	})
+}

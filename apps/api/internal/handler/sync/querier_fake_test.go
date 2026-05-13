@@ -150,8 +150,9 @@ func (unimplementedQuerier) UpsertWall(ctx context.Context, arg db.UpsertWallPar
 
 type fakeProjectPushQuerier struct {
 	unimplementedQuerier
-	getProjectByID func(ctx context.Context, id string) (db.Project, error)
-	upsertProject  func(ctx context.Context, arg db.UpsertProjectParams) (db.Project, error)
+	getProjectByID    func(ctx context.Context, id string) (db.Project, error)
+	upsertProject     func(ctx context.Context, arg db.UpsertProjectParams) (db.Project, error)
+	softDeleteProject func(ctx context.Context, arg db.SoftDeleteProjectParams) (db.Project, error)
 }
 
 func (f *fakeProjectPushQuerier) GetProjectByID(ctx context.Context, id string) (db.Project, error) {
@@ -168,4 +169,223 @@ func (f *fakeProjectPushQuerier) UpsertProject(ctx context.Context, arg db.Upser
 	panic("UpsertProject not configured")
 }
 
+func (f *fakeProjectPushQuerier) SoftDeleteProject(ctx context.Context, arg db.SoftDeleteProjectParams) (db.Project, error) {
+	if f.softDeleteProject != nil {
+		return f.softDeleteProject(ctx, arg)
+	}
+	panic("SoftDeleteProject not configured")
+}
+
+type fakePlanPushQuerier struct {
+	unimplementedQuerier
+	getProjectByID func(ctx context.Context, id string) (db.Project, error)
+	getPlanByID    func(ctx context.Context, id string) (db.Plan, error)
+	upsertPlan     func(ctx context.Context, arg db.UpsertPlanParams) (db.Plan, error)
+	softDeletePlan func(ctx context.Context, arg db.SoftDeletePlanParams) (db.Plan, error)
+}
+
+func (f *fakePlanPushQuerier) GetProjectByID(ctx context.Context, id string) (db.Project, error) {
+	if f.getProjectByID != nil {
+		return f.getProjectByID(ctx, id)
+	}
+	panic("GetProjectByID not configured")
+}
+
+func (f *fakePlanPushQuerier) GetPlanByID(ctx context.Context, id string) (db.Plan, error) {
+	if f.getPlanByID != nil {
+		return f.getPlanByID(ctx, id)
+	}
+	panic("GetPlanByID not configured")
+}
+
+func (f *fakePlanPushQuerier) UpsertPlan(ctx context.Context, arg db.UpsertPlanParams) (db.Plan, error) {
+	if f.upsertPlan != nil {
+		return f.upsertPlan(ctx, arg)
+	}
+	panic("UpsertPlan not configured")
+}
+
+func (f *fakePlanPushQuerier) SoftDeletePlan(ctx context.Context, arg db.SoftDeletePlanParams) (db.Plan, error) {
+	if f.softDeletePlan != nil {
+		return f.softDeletePlan(ctx, arg)
+	}
+	panic("SoftDeletePlan not configured")
+}
+
+type fakeRoomPushQuerier struct {
+	unimplementedQuerier
+	getProjectByID func(ctx context.Context, id string) (db.Project, error)
+	getPlanByID    func(ctx context.Context, id string) (db.Plan, error)
+	getRoomByID    func(ctx context.Context, id string) (db.Room, error)
+	upsertRoom     func(ctx context.Context, arg db.UpsertRoomParams) (db.Room, error)
+	softDeleteRoom func(ctx context.Context, arg db.SoftDeleteRoomParams) (db.Room, error)
+}
+
+func (f *fakeRoomPushQuerier) GetProjectByID(ctx context.Context, id string) (db.Project, error) {
+	if f.getProjectByID != nil {
+		return f.getProjectByID(ctx, id)
+	}
+	panic("GetProjectByID not configured")
+}
+
+func (f *fakeRoomPushQuerier) GetPlanByID(ctx context.Context, id string) (db.Plan, error) {
+	if f.getPlanByID != nil {
+		return f.getPlanByID(ctx, id)
+	}
+	panic("GetPlanByID not configured")
+}
+
+func (f *fakeRoomPushQuerier) GetRoomByID(ctx context.Context, id string) (db.Room, error) {
+	if f.getRoomByID != nil {
+		return f.getRoomByID(ctx, id)
+	}
+	panic("GetRoomByID not configured")
+}
+
+func (f *fakeRoomPushQuerier) UpsertRoom(ctx context.Context, arg db.UpsertRoomParams) (db.Room, error) {
+	if f.upsertRoom != nil {
+		return f.upsertRoom(ctx, arg)
+	}
+	panic("UpsertRoom not configured")
+}
+
+func (f *fakeRoomPushQuerier) SoftDeleteRoom(ctx context.Context, arg db.SoftDeleteRoomParams) (db.Room, error) {
+	if f.softDeleteRoom != nil {
+		return f.softDeleteRoom(ctx, arg)
+	}
+	panic("SoftDeleteRoom not configured")
+}
+
+type fakeWallPushQuerier struct {
+	unimplementedQuerier
+	getProjectByID func(ctx context.Context, id string) (db.Project, error)
+	getPlanByID    func(ctx context.Context, id string) (db.Plan, error)
+	getRoomByID    func(ctx context.Context, id string) (db.Room, error)
+	getWallByID    func(ctx context.Context, id string) (db.Wall, error)
+	upsertWall     func(ctx context.Context, arg db.UpsertWallParams) (db.Wall, error)
+	softDeleteWall func(ctx context.Context, arg db.SoftDeleteWallParams) (db.Wall, error)
+}
+
+func (f *fakeWallPushQuerier) GetProjectByID(ctx context.Context, id string) (db.Project, error) {
+	if f.getProjectByID != nil {
+		return f.getProjectByID(ctx, id)
+	}
+	panic("GetProjectByID not configured")
+}
+
+func (f *fakeWallPushQuerier) GetPlanByID(ctx context.Context, id string) (db.Plan, error) {
+	if f.getPlanByID != nil {
+		return f.getPlanByID(ctx, id)
+	}
+	panic("GetPlanByID not configured")
+}
+
+func (f *fakeWallPushQuerier) GetRoomByID(ctx context.Context, id string) (db.Room, error) {
+	if f.getRoomByID != nil {
+		return f.getRoomByID(ctx, id)
+	}
+	panic("GetRoomByID not configured")
+}
+
+func (f *fakeWallPushQuerier) GetWallByID(ctx context.Context, id string) (db.Wall, error) {
+	if f.getWallByID != nil {
+		return f.getWallByID(ctx, id)
+	}
+	panic("GetWallByID not configured")
+}
+
+func (f *fakeWallPushQuerier) UpsertWall(ctx context.Context, arg db.UpsertWallParams) (db.Wall, error) {
+	if f.upsertWall != nil {
+		return f.upsertWall(ctx, arg)
+	}
+	panic("UpsertWall not configured")
+}
+
+func (f *fakeWallPushQuerier) SoftDeleteWall(ctx context.Context, arg db.SoftDeleteWallParams) (db.Wall, error) {
+	if f.softDeleteWall != nil {
+		return f.softDeleteWall(ctx, arg)
+	}
+	panic("SoftDeleteWall not configured")
+}
+
+type fakePhotoPushQuerier struct {
+	unimplementedQuerier
+	getProjectByID         func(ctx context.Context, id string) (db.Project, error)
+	getPlanByID            func(ctx context.Context, id string) (db.Plan, error)
+	getRoomByID            func(ctx context.Context, id string) (db.Room, error)
+	getWallByID            func(ctx context.Context, id string) (db.Wall, error)
+	getPhotoByID           func(ctx context.Context, id string) (db.Photo, error)
+	getPhotoableByID       func(ctx context.Context, id string) (db.Photoable, error)
+	upsertPhotoableByOwner func(ctx context.Context, arg db.UpsertPhotoableByOwnerParams) (db.Photoable, error)
+	upsertPhoto            func(ctx context.Context, arg db.UpsertPhotoParams) (db.Photo, error)
+	softDeletePhoto        func(ctx context.Context, arg db.SoftDeletePhotoParams) (db.Photo, error)
+}
+
+func (f *fakePhotoPushQuerier) GetProjectByID(ctx context.Context, id string) (db.Project, error) {
+	if f.getProjectByID != nil {
+		return f.getProjectByID(ctx, id)
+	}
+	panic("GetProjectByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) GetPlanByID(ctx context.Context, id string) (db.Plan, error) {
+	if f.getPlanByID != nil {
+		return f.getPlanByID(ctx, id)
+	}
+	panic("GetPlanByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) GetRoomByID(ctx context.Context, id string) (db.Room, error) {
+	if f.getRoomByID != nil {
+		return f.getRoomByID(ctx, id)
+	}
+	panic("GetRoomByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) GetWallByID(ctx context.Context, id string) (db.Wall, error) {
+	if f.getWallByID != nil {
+		return f.getWallByID(ctx, id)
+	}
+	panic("GetWallByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) GetPhotoByID(ctx context.Context, id string) (db.Photo, error) {
+	if f.getPhotoByID != nil {
+		return f.getPhotoByID(ctx, id)
+	}
+	panic("GetPhotoByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) GetPhotoableByID(ctx context.Context, id string) (db.Photoable, error) {
+	if f.getPhotoableByID != nil {
+		return f.getPhotoableByID(ctx, id)
+	}
+	panic("GetPhotoableByID not configured")
+}
+
+func (f *fakePhotoPushQuerier) UpsertPhotoableByOwner(ctx context.Context, arg db.UpsertPhotoableByOwnerParams) (db.Photoable, error) {
+	if f.upsertPhotoableByOwner != nil {
+		return f.upsertPhotoableByOwner(ctx, arg)
+	}
+	panic("UpsertPhotoableByOwner not configured")
+}
+
+func (f *fakePhotoPushQuerier) UpsertPhoto(ctx context.Context, arg db.UpsertPhotoParams) (db.Photo, error) {
+	if f.upsertPhoto != nil {
+		return f.upsertPhoto(ctx, arg)
+	}
+	panic("UpsertPhoto not configured")
+}
+
+func (f *fakePhotoPushQuerier) SoftDeletePhoto(ctx context.Context, arg db.SoftDeletePhotoParams) (db.Photo, error) {
+	if f.softDeletePhoto != nil {
+		return f.softDeletePhoto(ctx, arg)
+	}
+	panic("SoftDeletePhoto not configured")
+}
+
 var _ db.Querier = (*fakeProjectPushQuerier)(nil)
+var _ db.Querier = (*fakePlanPushQuerier)(nil)
+var _ db.Querier = (*fakeRoomPushQuerier)(nil)
+var _ db.Querier = (*fakeWallPushQuerier)(nil)
+var _ db.Querier = (*fakePhotoPushQuerier)(nil)

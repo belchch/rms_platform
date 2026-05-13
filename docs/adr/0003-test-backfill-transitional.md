@@ -73,6 +73,10 @@
 - Soft-delete как tombstone: удалённая строка возвращается в pull с `deleted_at != null`.
 - Изоляция workspace: pull/push не смешивают данные разных workspace.
 
+**Интеграционные тесты для `pull*`**
+
+Код `internal/handler/sync/pull*.go`, вызывающий `List*Since`, критичен для инвариантов выше unit-уровня Go и должен явно проверяться против Postgres: фильтр `workspace_id`, пагинация `sync_cursor > since`, возврат soft-deleted строк без `deleted_at IS NULL` в запросе, согласованность payload. Покрытие только через unit и fake `Querier` не заменяет этот этап; его планируют после текущего backfill unit-тестами для `push*`.
+
 **Метрики**
 
 - Endpoint coverage >= 50% (3 из 6 маршрутов из `testing-baseline.md`).
