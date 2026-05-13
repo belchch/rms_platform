@@ -1,6 +1,6 @@
 ---
 description: Explicit Go error handling; no panic in production paths.
-alwaysApply: true
+globs: apps/api/**/*.go
 ---
 
 # Go — error handling

@@ -1,6 +1,6 @@
 ---
 description: All SQL lives in queries/ files; never build query strings dynamically.
-alwaysApply: true
+globs: apps/api/queries/**/*.sql, apps/api/sqlc.yaml, apps/api/internal/db/**/*.go, apps/api/internal/handler/**/*.go
 ---
 
 # sqlc — query rules

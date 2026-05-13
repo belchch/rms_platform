@@ -1,6 +1,6 @@
 ---
 description: Until schema stabilizes, no incremental migrations — only db-reset.
-alwaysApply: true
+globs: apps/api/migrations/**, apps/api/queries/**/*.sql
 ---
 
 # goose — migration strategy (dev)

@@ -1,6 +1,6 @@
 ---
 description: huma handler pattern — Input/Output structs, no naked http.ResponseWriter writes.
-alwaysApply: true
+globs: apps/api/internal/handler/**/*.go, apps/api/internal/middleware/**/*.go, apps/api/cmd/api/**/*.go
 ---
 
 # Go — huma HTTP handlers

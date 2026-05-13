@@ -1,6 +1,6 @@
 ---
 description: React web UI uses shadcn/ui + Tailwind; standard patterns for tables, forms, dialogs, toasts.
-alwaysApply: true
+globs: apps/web/**/*.{ts,tsx,css}
 ---
 
 # React — shadcn/ui + Tailwind

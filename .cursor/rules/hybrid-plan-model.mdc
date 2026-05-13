@@ -1,13 +1,17 @@
 ---
-description: Rules for Plan, Room, Wall entities and their hybrid storage model
-globs: *
+description: Plan/Room/Wall hybrid storage — geometry in payloadJson, metadata in tables, three independent sync aggregates.
+globs: apps/api/queries/{plans,rooms,walls}.sql, apps/api/internal/handler/sync/**/*.go, apps/api/internal/sync/types.go, apps/api/migrations/001_init.sql, apps/web/src/**/*{plan,room,wall,Plan,Room,Wall}*
 ---
+
 # Hybrid blueprint model
 
 When working with `Plan`, `Room`, `Wall` or their sync, always respect the hybrid model:
-- **Geometry** (coordinates, angles) is stored entirely in `Plan.payloadJson`.
-- **Metadata** (names, materials) is stored in separate `rooms` and `walls` tables for stable IDs (to attach photos).
-- For sync purposes these are **three independent aggregates** (each with its own `sync_cursor`, `updated_at`, `deleted_at`).
-- Merging happens only on the client.
 
-Full details in `docs/knowledge/hybrid-plan-model.md`.
+- **Geometry** (coordinates, angles, openings, topology) is stored entirely in `Plan.payloadJson` (JSONB). Atomic document under LWW.
+- **Metadata** (`rooms.name`, `walls.material`) is stored in separate `rooms` and `walls` relational tables for stable IDs (to attach photos).
+- For sync purposes these are **three independent aggregates** in `/sync/push` and `/sync/pull` — each with its own `id`, `updated_at`, `sync_cursor`, `deleted_at`.
+- Merging `plan + rooms + walls` into a single object — **client only**. Server does not return a "full plan".
+
+Do not normalize geometry into relational tables. Do not duplicate room names in `payloadJson`.
+
+Full spec: `docs/knowledge/hybrid-plan-model.md`.

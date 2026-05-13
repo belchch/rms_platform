@@ -1,6 +1,6 @@
 ---
 description: Go code must not contain obvious narrating comments.
-alwaysApply: true
+globs: apps/api/**/*.go
 ---
 
 # Go — no narrating comments
