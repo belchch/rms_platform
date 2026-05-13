@@ -1,6 +1,6 @@
 ---
 description: RMS architecture map — monorepo topology, api/web layers, codegen graph.
-alwaysApply: true
+globs: apps/api/**, apps/web/**, packages/api-contracts/**
 ---
 
 # RMS Architecture

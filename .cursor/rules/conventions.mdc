@@ -1,6 +1,6 @@
 ---
 description: Cross-cutting RMS invariants — IDs, time, sync, auth, codegen, photo, web↔api.
-alwaysApply: true
+globs: apps/api/**, apps/web/**, packages/api-contracts/**
 ---
 
 # RMS Conventions

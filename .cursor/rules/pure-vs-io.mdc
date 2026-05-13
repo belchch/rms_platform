@@ -1,6 +1,5 @@
 ---
 description: Separate pure logic from I/O — symptom and remedy.
-alwaysApply: true
 ---
 
 # Pure logic vs I/O

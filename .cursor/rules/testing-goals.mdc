@@ -1,6 +1,5 @@
 ---
-description: Testing goals in this project — not coverage
-alwaysApply: true
+description: Testing goals in this project — not coverage; pick candidates by invariant and bug cost; transitional test backfill phase (ADR-0003).
 ---
 
 # Testing Goals

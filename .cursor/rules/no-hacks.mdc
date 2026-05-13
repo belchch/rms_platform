@@ -1,6 +1,5 @@
 ---
 description: Reject hacky fixes; require root cause, single source of truth, and explicit lifecycle
-alwaysApply: true
 ---
 
 # No hacks (architecture)
