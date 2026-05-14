@@ -65,7 +65,7 @@ Source of truth for each item: `docs/knowledge/sync-protocol.md`, `docs/knowledg
 - `panic` in request path → violates `go-error-handling`.
 - Two write paths for the same entity (handler + background worker both writing to the same table via different SQL) → violates `no-hacks`, single source of truth.
 - Boolean flags (`isSyncing`, `loaded`, `initialized`) without a documented contract in a comment or doc → violates `no-hacks`.
-- Logic for multiple sync entities (project, plan, room, wall, photo) in one handler file instead of separate files per entity → architectural smell. Rule: `internal/handler/sync/push.go` contains only shared utilities and the `applyPushOperation` dispatcher; each entity's logic lives in a separate `push_<entity>.go`. Same applies to pull if it grows similarly.
+- Logic for multiple sync entities (project, plan, room, wall, photo) in one handler file instead of separate sub-packages → architectural smell. Rule (ADR-0005): `sync/push.go` and `sync/pull.go` contain only transport and the `applyPushOperation` dispatcher; each entity's logic lives in `sync/<entity>/<entity>.go`; cross-entity pure logic lives in `sync/syncdomain/`.
 
 ## 8. Breaking changes for clients
 
