@@ -8,3 +8,4 @@
 - [ADR 0002: Использование интерфейса Querier в handler-слое](0002-querier-seam.md)
 - [ADR 0003: Переходный режим — обкладывание существующей базы тестами](0003-test-backfill-transitional.md)
 - [ADR 0004: Расслоение handler-пакетов](0004-handler-package-layering.md)
+- [ADR 0005: Разбиение `handler/sync/` по сущностям](0005-sync-split-by-entity.md)
