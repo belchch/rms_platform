@@ -1,4 +1,4 @@
-package sync
+package photo
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
-	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
+	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
 var errUnsupportedParentType = errors.New("unsupported parentType")
@@ -119,12 +119,12 @@ func photoSnapshotFromPullRow(r db.ListPhotosSinceRow) (synctypes.EntitySnapshot
 	return photoSnapshotFromOwnerAndPhoto(r.OwnerType, r.OwnerID, listPhotosSinceRowToPhoto(r))
 }
 
-func pushPhoto(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func ApplyPush(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
-		return pushPhotoDelete(ctx, q, wsID, op)
+		return pushDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
-		return pushPhotoUpsert(ctx, q, wsID, op)
+		return pushUpsert(ctx, q, wsID, op)
 	default:
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
@@ -147,7 +147,7 @@ func photoParentWorkspace(ctx context.Context, q db.Querier, p synctypes.PhotoPa
 	}
 }
 
-func pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func pushUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	var payload synctypes.PhotoPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "invalid photo payload"}}
@@ -257,7 +257,7 @@ func pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string, op synctype
 	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }
 
-func pushPhotoDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func pushDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	row, err := q.GetPhotoByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "photo not found"}}
@@ -295,4 +295,20 @@ func pushPhotoDelete(ctx context.Context, q db.Querier, wsID string, op synctype
 		return syncdomain.InternalPushErr(op, err)
 	}
 	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
+}
+
+func AppendPullChanges(changes []synctypes.PullChange, rows []db.ListPhotosSinceRow) ([]synctypes.PullChange, error) {
+	return syncdomain.AppendPullChangesFromRows(changes, rows, func(r db.ListPhotosSinceRow) (synctypes.PullChange, error) {
+		snap, err := photoSnapshotFromPullRow(r)
+		if err != nil {
+			log.Error().Err(err).Str("entityType", string(synctypes.EntityTypePhoto)).Str("entityId", r.ID).Msg("sync pull snapshot failed")
+			return synctypes.PullChange{}, fmt.Errorf("sync pull photo snapshot: %w", err)
+		}
+		pc, err := syncdomain.PullChangeFromSnapshot(snap, r.UpdatedAt, r.SyncCursor, r.DeletedAt)
+		if err != nil {
+			log.Error().Err(err).Str("entityType", string(synctypes.EntityTypePhoto)).Str("entityId", r.ID).Msg("sync pull snapshot failed")
+			return synctypes.PullChange{}, fmt.Errorf("sync pull photo snapshot: %w", err)
+		}
+		return pc, nil
+	})
 }

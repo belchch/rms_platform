@@ -1,4 +1,4 @@
-package sync
+package room
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         json.RawMessage(`not-json`),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "validation", res.PushError.Reason)
 	})
@@ -53,7 +53,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload("", &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "planId is required", res.PushError.Message)
 	})
@@ -70,7 +70,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "notFound", res.PushError.Reason)
 		require.Equal(t, "plan not found", res.PushError.Message)
@@ -91,7 +91,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
@@ -120,7 +120,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.True(t, res.Applied)
 		require.Equal(t, int64(12), res.Cursor)
 	})
@@ -143,7 +143,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "room not found", res.PushError.Message)
 	})
@@ -172,7 +172,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
@@ -195,7 +195,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.Conflict)
 		require.Equal(t, "stale", res.Conflict.Reason)
 	})
@@ -221,7 +221,7 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		}
-		res := pushRoomUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.True(t, res.Applied)
 		require.Equal(t, int64(3), res.Cursor)
 	})
@@ -233,7 +233,7 @@ func TestPushRoomUpsert(t *testing.T) {
 				return db.Plan{}, dbErr
 			},
 		}
-		res := pushRoomUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -260,7 +260,7 @@ func TestPushRoomDelete(t *testing.T) {
 				return db.Room{}, pgx.ErrNoRows
 			},
 		}
-		res := pushRoomDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -279,7 +279,7 @@ func TestPushRoomDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := pushRoomDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -298,7 +298,7 @@ func TestPushRoomDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID}, nil
 			},
 		}
-		res := pushRoomDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -320,7 +320,7 @@ func TestPushRoomDelete(t *testing.T) {
 				return db.Room{SyncCursor: 44}, nil
 			},
 		}
-		res := pushRoomDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

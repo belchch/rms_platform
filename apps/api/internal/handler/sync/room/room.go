@@ -1,15 +1,18 @@
-package sync
+package room
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/belchch/rms_platform/api/internal/db"
-	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
+	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
 func roomSnapshot(r db.Room) (synctypes.EntitySnapshot, error) {
@@ -28,18 +31,18 @@ func roomSnapshot(r db.Room) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func pushRoom(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func ApplyPush(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
-		return pushRoomDelete(ctx, q, wsID, op)
+		return pushDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
-		return pushRoomUpsert(ctx, q, wsID, op)
+		return pushUpsert(ctx, q, wsID, op)
 	default:
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
 }
 
-func pushRoomUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func pushUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	var payload synctypes.RoomPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "invalid room payload"}}
@@ -108,7 +111,7 @@ func pushRoomUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes
 	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }
 
-func pushRoomDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+func pushDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	row, err := q.GetRoomByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "room not found"}}
@@ -142,4 +145,20 @@ func pushRoomDelete(ctx context.Context, q db.Querier, wsID string, op synctypes
 		return syncdomain.InternalPushErr(op, err)
 	}
 	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
+}
+
+func AppendPullChanges(changes []synctypes.PullChange, rows []db.Room) ([]synctypes.PullChange, error) {
+	return syncdomain.AppendPullChangesFromRows(changes, rows, func(r db.Room) (synctypes.PullChange, error) {
+		snap, err := roomSnapshot(r)
+		if err != nil {
+			log.Error().Err(err).Str("entityType", string(synctypes.EntityTypeRoom)).Str("entityId", r.ID).Msg("sync pull snapshot failed")
+			return synctypes.PullChange{}, fmt.Errorf("sync pull room snapshot: %w", err)
+		}
+		pc, err := syncdomain.PullChangeFromSnapshot(snap, r.UpdatedAt, r.SyncCursor, r.DeletedAt)
+		if err != nil {
+			log.Error().Err(err).Str("entityType", string(synctypes.EntityTypeRoom)).Str("entityId", r.ID).Msg("sync pull snapshot failed")
+			return synctypes.PullChange{}, fmt.Errorf("sync pull room snapshot: %w", err)
+		}
+		return pc, nil
+	})
 }

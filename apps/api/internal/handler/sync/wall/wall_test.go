@@ -1,4 +1,4 @@
-package sync
+package wall
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func TestPushWallUpsert(t *testing.T) {
 
 	t.Run("invalid json — validation", func(t *testing.T) {
 		q := &fakeWallPushQuerier{}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -59,7 +59,7 @@ func TestPushWallUpsert(t *testing.T) {
 
 	t.Run("empty roomId — validation", func(t *testing.T) {
 		q := &fakeWallPushQuerier{}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -74,7 +74,7 @@ func TestPushWallUpsert(t *testing.T) {
 				return db.Room{}, pgx.ErrNoRows
 			},
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -96,7 +96,7 @@ func TestPushWallUpsert(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -116,7 +116,7 @@ func TestPushWallUpsert(t *testing.T) {
 			require.Equal(t, roomID, arg.RoomID)
 			return db.Wall{SyncCursor: 8}, nil
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -131,7 +131,7 @@ func TestPushWallUpsert(t *testing.T) {
 		q.getWallByID = func(ctx context.Context, id string) (db.Wall, error) {
 			return db.Wall{}, pgx.ErrNoRows
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -163,7 +163,7 @@ func TestPushWallUpsert(t *testing.T) {
 			}
 			return db.Project{WorkspaceID: wsID}, nil
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -177,7 +177,7 @@ func TestPushWallUpsert(t *testing.T) {
 		q.getWallByID = func(ctx context.Context, id string) (db.Wall, error) {
 			return db.Wall{RoomID: roomID, UpdatedAt: validUpdated}, nil
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
@@ -194,7 +194,7 @@ func TestPushWallUpsert(t *testing.T) {
 		q.upsertWall = func(ctx context.Context, arg db.UpsertWallParams) (db.Wall, error) {
 			return db.Wall{SyncCursor: 6}, nil
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -211,7 +211,7 @@ func TestPushWallUpsert(t *testing.T) {
 				return db.Room{}, dbErr
 			},
 		}
-		res := pushWallUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -238,7 +238,7 @@ func TestPushWallDelete(t *testing.T) {
 				return db.Wall{}, pgx.ErrNoRows
 			},
 		}
-		res := pushWallDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -260,7 +260,7 @@ func TestPushWallDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := pushWallDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -282,7 +282,7 @@ func TestPushWallDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID}, nil
 			},
 		}
-		res := pushWallDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -307,7 +307,7 @@ func TestPushWallDelete(t *testing.T) {
 				return db.Wall{SyncCursor: 22}, nil
 			},
 		}
-		res := pushWallDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

@@ -10,6 +10,12 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/photo"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/plan"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/project"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/room"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/wall"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
@@ -97,4 +103,23 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 		Msg("sync push completed")
 
 	return out, nil
+}
+
+func applyPushOperation(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
+	switch op.EntityType {
+	case synctypes.EntityTypeProject:
+		return project.ApplyPush(ctx, q, wsID, op)
+	case synctypes.EntityTypePlan:
+		return plan.ApplyPush(ctx, q, wsID, op)
+	case synctypes.EntityTypeRoom:
+		return room.ApplyPush(ctx, q, wsID, op)
+	case synctypes.EntityTypeWall:
+		return wall.ApplyPush(ctx, q, wsID, op)
+	case synctypes.EntityTypePhoto:
+		return photo.ApplyPush(ctx, q, wsID, op)
+	default:
+		return syncdomain.PushStepResult{
+			PushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported entityType"},
+		}
+	}
 }

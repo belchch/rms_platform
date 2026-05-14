@@ -1,4 +1,4 @@
-package sync
+package project
 
 import (
 	"context"
@@ -35,10 +35,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpCreate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         json.RawMessage(`not-json`),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "validation", res.PushError.Reason)
 		require.Equal(t, "invalid project payload", res.PushError.Message)
@@ -50,10 +50,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpCreate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload(""),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "validation", res.PushError.Reason)
 		require.Equal(t, "name is required", res.PushError.Message)
@@ -74,10 +74,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpCreate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload("New Project"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.True(t, res.Applied)
 		require.Equal(t, int64(9001), res.Cursor)
 		require.Nil(t, res.PushError)
@@ -94,10 +94,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpUpdate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload("X"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "notFound", res.PushError.Reason)
 	})
@@ -113,10 +113,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpCreate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload("P"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "internal", res.PushError.Reason)
 	})
@@ -136,10 +136,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpUpdate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload("Mutator"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.PushError)
 		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
@@ -159,10 +159,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpUpdate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs,
+			ClientUpdatedAt: serverMs,
 			Payload:         namePayload("Client Title"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.Conflict)
 		require.Equal(t, "stale", res.Conflict.Reason)
 		require.Equal(t, synctypes.EntityTypeProject, res.Conflict.ServerVersion.EntityType)
@@ -187,10 +187,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Op:              synctypes.OpUpdate,
 			EntityType:      synctypes.EntityTypeProject,
 			EntityID:        entityID,
-			ClientUpdatedAt:   serverMs + 1,
+			ClientUpdatedAt: serverMs + 1,
 			Payload:         namePayload("Winner"),
 		}
-		res := pushProjectUpsert(ctx, q, wsID, op)
+		res := pushUpsert(ctx, q, wsID, op)
 		require.True(t, res.Applied)
 		require.Equal(t, int64(42), res.Cursor)
 		require.Nil(t, res.PushError)
@@ -211,7 +211,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{}, pgx.ErrNoRows
 			},
 		}
-		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -225,7 +225,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other", UpdatedAt: validUpdated}, nil
 			},
 		}
-		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -238,7 +238,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID, UpdatedAt: validUpdated}, nil
 			},
 		}
-		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -255,7 +255,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{SyncCursor: 31}, nil
 			},
 		}
-		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

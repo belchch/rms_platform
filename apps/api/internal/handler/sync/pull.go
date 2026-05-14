@@ -11,6 +11,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/photo"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/plan"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/project"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/room"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/wall"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
@@ -80,19 +85,19 @@ func (h *handler) pull(ctx context.Context, in *PullInput) (*PullOutput, error) 
 	}
 
 	changes := make([]synctypes.PullChange, 0)
-	if changes, err = pullAppendProjects(changes, projects); err != nil {
+	if changes, err = project.AppendPullChanges(changes, projects); err != nil {
 		return nil, err
 	}
-	if changes, err = pullAppendPlans(changes, plans); err != nil {
+	if changes, err = plan.AppendPullChanges(changes, plans); err != nil {
 		return nil, err
 	}
-	if changes, err = pullAppendRooms(changes, rooms); err != nil {
+	if changes, err = room.AppendPullChanges(changes, rooms); err != nil {
 		return nil, err
 	}
-	if changes, err = pullAppendWalls(changes, walls); err != nil {
+	if changes, err = wall.AppendPullChanges(changes, walls); err != nil {
 		return nil, err
 	}
-	if changes, err = pullAppendPhotos(changes, photos); err != nil {
+	if changes, err = photo.AppendPullChanges(changes, photos); err != nil {
 		return nil, err
 	}
 
