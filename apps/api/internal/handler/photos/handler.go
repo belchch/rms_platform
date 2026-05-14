@@ -38,12 +38,12 @@ type UploadUrlOutput struct {
 	}
 }
 
-type Handler struct {
+type handler struct {
 	presigner PhotoPresigner
 }
 
 func Register(api huma.API, presigner PhotoPresigner) {
-	h := &Handler{presigner: presigner}
+	h := &handler{presigner: presigner}
 	huma.Register(api, huma.Operation{
 		OperationID: "get-photo-upload-url",
 		Method:      http.MethodPost,
@@ -54,7 +54,7 @@ func Register(api huma.API, presigner PhotoPresigner) {
 	}, h.uploadUrl)
 }
 
-func (h *Handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*UploadUrlOutput, error) {
+func (h *handler) uploadUrl(ctx context.Context, input *UploadUrlInput) (*UploadUrlOutput, error) {
 	photoID := strings.TrimSpace(input.Body.PhotoID)
 	contentType := strings.TrimSpace(input.Body.ContentType)
 	if photoID == "" {

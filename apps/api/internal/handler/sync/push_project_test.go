@@ -30,7 +30,6 @@ func TestPushProjectUpsert(t *testing.T) {
 	}
 
 	t.Run("invalid json payload — validation", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{}
 		op := synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
@@ -39,14 +38,13 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         json.RawMessage(`not-json`),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "validation", res.pushError.Reason)
 		require.Equal(t, "invalid project payload", res.pushError.Message)
 	})
 
 	t.Run("empty name — validation", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{}
 		op := synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
@@ -55,14 +53,13 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload(""),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "validation", res.pushError.Reason)
 		require.Equal(t, "name is required", res.pushError.Message)
 	})
 
 	t.Run("no row, OpCreate — applied", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
 				return db.Project{}, pgx.ErrNoRows
@@ -80,7 +77,7 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload("New Project"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.True(t, res.applied)
 		require.Equal(t, int64(9001), res.cursor)
 		require.Nil(t, res.pushError)
@@ -88,7 +85,6 @@ func TestPushProjectUpsert(t *testing.T) {
 	})
 
 	t.Run("no row, OpUpdate — notFound", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
 				return db.Project{}, pgx.ErrNoRows
@@ -101,13 +97,12 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload("X"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "notFound", res.pushError.Reason)
 	})
 
 	t.Run("GetProjectByID non-NoRows error — internal", func(t *testing.T) {
-		h := &handler{}
 		dbErr := errors.New("connection refused")
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
@@ -121,13 +116,12 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload("P"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "internal", res.pushError.Reason)
 	})
 
 	t.Run("wrong workspace — forbidden", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
 				return db.Project{
@@ -145,13 +139,12 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload("Mutator"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "forbidden", res.pushError.Reason)
 	})
 
 	t.Run("same workspace, client stale — conflict stale", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
 				return db.Project{
@@ -169,14 +162,13 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs,
 			Payload:         namePayload("Client Title"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.conflict)
 		require.Equal(t, "stale", res.conflict.Reason)
 		require.Equal(t, synctypes.EntityTypeProject, res.conflict.ServerVersion.EntityType)
 	})
 
 	t.Run("same workspace, client wins — applied", func(t *testing.T) {
-		h := &handler{}
 		q := &fakeProjectPushQuerier{
 			getProjectByID: func(ctx context.Context, id string) (db.Project, error) {
 				return db.Project{
@@ -198,7 +190,7 @@ func TestPushProjectUpsert(t *testing.T) {
 			ClientUpdatedAt:   serverMs + 1,
 			Payload:         namePayload("Winner"),
 		}
-		res := h.pushProjectUpsert(ctx, q, wsID, op)
+		res := pushProjectUpsert(ctx, q, wsID, op)
 		require.True(t, res.applied)
 		require.Equal(t, int64(42), res.cursor)
 		require.Nil(t, res.pushError)
@@ -212,7 +204,6 @@ func TestPushProjectDelete(t *testing.T) {
 	serverTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	serverMs := serverTime.UnixMilli()
 	validUpdated := pgtype.Timestamptz{Time: serverTime, Valid: true}
-	h := &handler{}
 
 	t.Run("not found", func(t *testing.T) {
 		q := &fakeProjectPushQuerier{
@@ -220,7 +211,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{}, pgx.ErrNoRows
 			},
 		}
-		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -234,7 +225,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other", UpdatedAt: validUpdated}, nil
 			},
 		}
-		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -247,7 +238,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID, UpdatedAt: validUpdated}, nil
 			},
 		}
-		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -264,7 +255,7 @@ func TestPushProjectDelete(t *testing.T) {
 				return db.Project{SyncCursor: 31}, nil
 			},
 		}
-		res := h.pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushProjectDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

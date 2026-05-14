@@ -9,6 +9,10 @@ import (
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
 
+type handler struct {
+	pool *pgxpool.Pool
+}
+
 type PullInput struct {
 	Since int64 `query:"since" doc:"Server cursor from previous pull"`
 }

@@ -27,7 +27,6 @@ func TestPushPhotoUpsert(t *testing.T) {
 	serverMs := serverTime.UnixMilli()
 	validUpdated := pgtype.Timestamptz{Time: serverTime, Valid: true}
 
-	h := &handler{}
 	photoPayload := func(pl synctypes.PhotoPayload) json.RawMessage {
 		b, err := json.Marshal(pl)
 		require.NoError(t, err)
@@ -36,7 +35,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 
 	t.Run("invalid json — validation", func(t *testing.T) {
 		q := &fakePhotoPushQuerier{}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -48,7 +47,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 
 	t.Run("contentType and parentId required", func(t *testing.T) {
 		q := &fakePhotoPushQuerier{}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -67,7 +66,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Project{}, pgx.ErrNoRows
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -83,7 +82,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 
 	t.Run("unsupported parentType — validation", func(t *testing.T) {
 		q := &fakePhotoPushQuerier{}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -103,7 +102,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -138,7 +137,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photo{SyncCursor: 500}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -161,7 +160,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photo{}, pgx.ErrNoRows
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -197,7 +196,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photo{SyncCursor: 88}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -237,7 +236,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photoable{}, errors.New("unexpected photoable id")
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -268,7 +267,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Project{WorkspaceID: wsID}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
@@ -298,7 +297,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photoable{OwnerType: "unknown_kind", OwnerID: "x"}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpUpdate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -333,7 +332,7 @@ func TestPushPhotoUpsert(t *testing.T) {
 				return db.Photo{SyncCursor: 9}, nil
 			},
 		}
-		res := h.pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoUpsert(ctx, q, wsID, synctypes.PushOperation{
 			Op:              synctypes.OpCreate,
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
@@ -355,7 +354,6 @@ func TestPushPhotoDelete(t *testing.T) {
 	serverTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	serverMs := serverTime.UnixMilli()
 	validUpdated := pgtype.Timestamptz{Time: serverTime, Valid: true}
-	h := &handler{}
 
 	t.Run("not found", func(t *testing.T) {
 		q := &fakePhotoPushQuerier{
@@ -363,7 +361,7 @@ func TestPushPhotoDelete(t *testing.T) {
 				return db.Photo{}, pgx.ErrNoRows
 			},
 		}
-		res := h.pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -382,7 +380,7 @@ func TestPushPhotoDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := h.pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -401,7 +399,7 @@ func TestPushPhotoDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID}, nil
 			},
 		}
-		res := h.pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -423,7 +421,7 @@ func TestPushPhotoDelete(t *testing.T) {
 				return db.Photo{SyncCursor: 707}, nil
 			},
 		}
-		res := h.pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -440,7 +438,7 @@ func TestPushPhotoDelete(t *testing.T) {
 				return db.Photoable{OwnerType: "bad", OwnerID: "x"}, nil
 			},
 		}
-		res := h.pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPhotoDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

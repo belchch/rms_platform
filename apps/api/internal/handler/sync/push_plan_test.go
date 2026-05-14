@@ -30,7 +30,6 @@ func TestPushPlanUpsert(t *testing.T) {
 		return b
 	}
 
-	h := &handler{}
 	t.Run("invalid json payload — validation", func(t *testing.T) {
 		q := &fakePlanPushQuerier{}
 		op := synctypes.PushOperation{
@@ -40,7 +39,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         json.RawMessage(`not-json`),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "validation", res.pushError.Reason)
 		require.Equal(t, "invalid plan payload", res.pushError.Message)
@@ -55,7 +54,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload("", "N"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "validation", res.pushError.Reason)
 		require.Equal(t, "projectId and name are required", res.pushError.Message)
@@ -70,7 +69,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, ""),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "validation", res.pushError.Reason)
 	})
@@ -89,7 +88,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "P"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "notFound", res.pushError.Reason)
 		require.Equal(t, "project not found", res.pushError.Message)
@@ -108,7 +107,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "P"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "forbidden", res.pushError.Reason)
 	})
@@ -127,7 +126,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "P"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "internal", res.pushError.Reason)
 	})
@@ -155,7 +154,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "Floor 1"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.True(t, res.applied)
 		require.Equal(t, int64(77), res.cursor)
 	})
@@ -176,7 +175,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "X"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "notFound", res.pushError.Reason)
 		require.Equal(t, "plan not found", res.pushError.Message)
@@ -206,7 +205,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "Mut"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.pushError)
 		require.Equal(t, "forbidden", res.pushError.Reason)
 	})
@@ -232,7 +231,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs,
 			Payload:         planPayload(projectID, "Client"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.NotNil(t, res.conflict)
 		require.Equal(t, "stale", res.conflict.Reason)
 		require.Equal(t, synctypes.EntityTypePlan, res.conflict.ServerVersion.EntityType)
@@ -261,7 +260,7 @@ func TestPushPlanUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         planPayload(projectID, "Win"),
 		}
-		res := h.pushPlanUpsert(ctx, q, wsID, op)
+		res := pushPlanUpsert(ctx, q, wsID, op)
 		require.True(t, res.applied)
 		require.Equal(t, int64(55), res.cursor)
 	})
@@ -276,15 +275,13 @@ func TestPushPlanDelete(t *testing.T) {
 	serverMs := serverTime.UnixMilli()
 	validUpdated := pgtype.Timestamptz{Time: serverTime, Valid: true}
 
-	h := &handler{}
-
 	t.Run("not found", func(t *testing.T) {
 		q := &fakePlanPushQuerier{
 			getPlanByID: func(ctx context.Context, id string) (db.Plan, error) {
 				return db.Plan{}, pgx.ErrNoRows
 			},
 		}
-		res := h.pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -301,7 +298,7 @@ func TestPushPlanDelete(t *testing.T) {
 				return db.Project{WorkspaceID: "ws-other"}, nil
 			},
 		}
-		res := h.pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
@@ -318,7 +315,7 @@ func TestPushPlanDelete(t *testing.T) {
 				return db.Project{WorkspaceID: wsID}, nil
 			},
 		}
-		res := h.pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
@@ -339,7 +336,7 @@ func TestPushPlanDelete(t *testing.T) {
 				return db.Plan{SyncCursor: 99}, nil
 			},
 		}
-		res := h.pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
+		res := pushPlanDelete(ctx, q, wsID, synctypes.PushOperation{
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})

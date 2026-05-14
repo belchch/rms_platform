@@ -7,75 +7,12 @@ import (
 	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	mid "github.com/belchch/rms_platform/api/internal/middleware"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
 )
-
-type handler struct {
-	pool *pgxpool.Pool
-}
-
-func lwwWins(clientMs int64, serverUpdated pgtype.Timestamptz) (bool, error) {
-	if !serverUpdated.Valid {
-		return false, fmt.Errorf("server updated_at is invalid: NOT NULL invariant violated")
-	}
-	return clientMs > serverUpdated.Time.UnixMilli(), nil
-}
-
-func workspaceOfPlan(ctx context.Context, q db.Querier, planID string) (string, error) {
-	pl, err := q.GetPlanByID(ctx, planID)
-	if err != nil {
-		return "", err
-	}
-	p, err := q.GetProjectByID(ctx, pl.ProjectID)
-	if err != nil {
-		return "", err
-	}
-	return p.WorkspaceID, nil
-}
-
-func workspaceOfRoom(ctx context.Context, q db.Querier, roomID string) (string, error) {
-	r, err := q.GetRoomByID(ctx, roomID)
-	if err != nil {
-		return "", err
-	}
-	return workspaceOfPlan(ctx, q, r.PlanID)
-}
-
-func workspaceOfWall(ctx context.Context, q db.Querier, wallID string) (string, error) {
-	w, err := q.GetWallByID(ctx, wallID)
-	if err != nil {
-		return "", err
-	}
-	return workspaceOfRoom(ctx, q, w.RoomID)
-}
-
-func validateWorkspace(actualWS, jwtWS string) *synctypes.PushError {
-	if actualWS != jwtWS {
-		return &synctypes.PushError{Reason: "forbidden", Message: "entity belongs to another workspace"}
-	}
-	return nil
-}
-
-type pushStepResult struct {
-	applied   bool
-	conflict  *synctypes.PushConflict
-	pushError *synctypes.PushError
-	cursor    int64
-}
-
-func internalPushErr(op synctypes.PushOperation, err error) pushStepResult {
-	log.Error().Err(err).
-		Str("clientOpId", op.ClientOpID).
-		Str("entityId", op.EntityID).
-		Msg("sync push internal error")
-	return pushStepResult{pushError: &synctypes.PushError{Reason: "internal", Message: "internal server error"}}
-}
 
 func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) {
 	wsID, ok := mid.WorkspaceID(ctx)
@@ -109,7 +46,7 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 			return nil, fmt.Errorf("sync push savepoint: %w", err)
 		}
 
-		res := h.applyPushOperation(ctx, qtx, wsID, op)
+		res := applyPushOperation(ctx, qtx, wsID, op)
 
 		if res.pushError != nil {
 			res.pushError.ClientOpID = op.ClientOpID
@@ -160,23 +97,4 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 		Msg("sync push completed")
 
 	return out, nil
-}
-
-func (h *handler) applyPushOperation(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
-	switch op.EntityType {
-	case synctypes.EntityTypeProject:
-		return h.pushProject(ctx, q, wsID, op)
-	case synctypes.EntityTypePlan:
-		return h.pushPlan(ctx, q, wsID, op)
-	case synctypes.EntityTypeRoom:
-		return h.pushRoom(ctx, q, wsID, op)
-	case synctypes.EntityTypeWall:
-		return h.pushWall(ctx, q, wsID, op)
-	case synctypes.EntityTypePhoto:
-		return h.pushPhoto(ctx, q, wsID, op)
-	default:
-		return pushStepResult{
-			pushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported entityType"},
-		}
-	}
 }

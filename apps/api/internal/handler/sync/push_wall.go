@@ -24,18 +24,18 @@ func wallSnapshot(w db.Wall) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func (h *handler) pushWall(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushWall(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
-		return h.pushWallDelete(ctx, q, wsID, op)
+		return pushWallDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
-		return h.pushWallUpsert(ctx, q, wsID, op)
+		return pushWallUpsert(ctx, q, wsID, op)
 	default:
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
 }
 
-func (h *handler) pushWallUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushWallUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	var payload synctypes.WallPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid wall payload"}}
@@ -102,7 +102,7 @@ func (h *handler) pushWallUpsert(ctx context.Context, q db.Querier, wsID string,
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
 
-func (h *handler) pushWallDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushWallDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	row, err := q.GetWallByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "wall not found"}}

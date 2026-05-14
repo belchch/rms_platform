@@ -118,12 +118,12 @@ func photoSnapshotFromPullRow(r db.ListPhotosSinceRow) (synctypes.EntitySnapshot
 	return photoSnapshotFromOwnerAndPhoto(r.OwnerType, r.OwnerID, listPhotosSinceRowToPhoto(r))
 }
 
-func (h *handler) pushPhoto(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPhoto(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
-		return h.pushPhotoDelete(ctx, q, wsID, op)
+		return pushPhotoDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
-		return h.pushPhotoUpsert(ctx, q, wsID, op)
+		return pushPhotoUpsert(ctx, q, wsID, op)
 	default:
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
@@ -146,7 +146,7 @@ func photoParentWorkspace(ctx context.Context, q db.Querier, p synctypes.PhotoPa
 	}
 }
 
-func (h *handler) pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	var payload synctypes.PhotoPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid photo payload"}}
@@ -256,7 +256,7 @@ func (h *handler) pushPhotoUpsert(ctx context.Context, q db.Querier, wsID string
 	return pushStepResult{applied: true, cursor: out.SyncCursor}
 }
 
-func (h *handler) pushPhotoDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPhotoDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
 	row, err := q.GetPhotoByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "photo not found"}}
