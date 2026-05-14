@@ -1,4 +1,4 @@
-package sync
+package syncdomain
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ func TestEpochMsToTimestamptz(t *testing.T) {
 	}{
 		{
 			name:     "positive ms (after epoch)",
-			ms:       1672531200000, // 2023-01-01 00:00:00 UTC
+			ms:       1672531200000,
 			expected: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 		},
 		{
@@ -26,14 +26,14 @@ func TestEpochMsToTimestamptz(t *testing.T) {
 		},
 		{
 			name:     "negative ms (before epoch)",
-			ms:       -1000, // 1969-12-31 23:59:59 UTC
+			ms:       -1000,
 			expected: time.Date(1969, 12, 31, 23, 59, 59, 0, time.UTC),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := epochMsToTimestamptz(tt.ms)
+			result := EpochMsToTimestamptz(tt.ms)
 			require.True(t, result.Valid)
 			require.Equal(t, tt.expected.UnixMilli(), result.Time.UnixMilli())
 		})
@@ -86,7 +86,7 @@ func TestTimestamptzEpochMs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ms, err := timestamptzEpochMs(tt.input)
+			ms, err := TimestamptzEpochMs(tt.input)
 			if tt.expectError {
 				require.Error(t, err)
 				require.Equal(t, int64(0), ms)
@@ -139,7 +139,7 @@ func TestTimestamptzEpochMsPtr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msPtr := timestamptzEpochMsPtr(tt.input)
+			msPtr := TimestamptzEpochMsPtr(tt.input)
 			if tt.expectedMs == nil {
 				require.Nil(t, msPtr)
 			} else {

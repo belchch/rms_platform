@@ -1,4 +1,4 @@
-package sync
+package syncdomain
 
 import (
 	"testing"
@@ -15,29 +15,29 @@ func TestLwwWins(t *testing.T) {
 	validServer := pgtype.Timestamptz{Time: serverTime, Valid: true}
 
 	tests := []struct {
-		name        string
-		clientMs    int64
-		server      pgtype.Timestamptz
-		wantWins    bool
-		wantErrMsg  string
+		name       string
+		clientMs   int64
+		server     pgtype.Timestamptz
+		wantWins   bool
+		wantErrMsg string
 	}{
 		{
-			name:       "client newer than server — wins",
-			clientMs:   serverMs + 1,
-			server:     validServer,
-			wantWins:   true,
+			name:     "client newer than server — wins",
+			clientMs: serverMs + 1,
+			server:   validServer,
+			wantWins: true,
 		},
 		{
-			name:       "client older than server — loses",
-			clientMs:   serverMs - 1,
-			server:     validServer,
-			wantWins:   false,
+			name:     "client older than server — loses",
+			clientMs: serverMs - 1,
+			server:   validServer,
+			wantWins: false,
 		},
 		{
-			name:       "client equal to server — loses (server keeps its value)",
-			clientMs:   serverMs,
-			server:     validServer,
-			wantWins:   false,
+			name:     "client equal to server — loses (server keeps its value)",
+			clientMs: serverMs,
+			server:   validServer,
+			wantWins: false,
 		},
 		{
 			name:       "server updated_at is invalid — NOT NULL invariant violated",
@@ -49,7 +49,7 @@ func TestLwwWins(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wins, err := lwwWins(tt.clientMs, tt.server)
+			wins, err := LWWWins(tt.clientMs, tt.server)
 
 			if tt.wantErrMsg != "" {
 				require.Error(t, err)

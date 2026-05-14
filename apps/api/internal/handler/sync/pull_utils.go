@@ -6,10 +6,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
 )
 
 func pullChangeFromSnapshot(snap synctypes.EntitySnapshot, updatedAt pgtype.Timestamptz, syncCursor int64, deletedAt pgtype.Timestamptz) (synctypes.PullChange, error) {
-	ua, err := timestamptzEpochMs(updatedAt)
+	ua, err := syncdomain.TimestamptzEpochMs(updatedAt)
 	if err != nil {
 		return synctypes.PullChange{}, fmt.Errorf("pull updated_at: %w", err)
 	}
@@ -19,7 +20,7 @@ func pullChangeFromSnapshot(snap synctypes.EntitySnapshot, updatedAt pgtype.Time
 		Payload:    snap.Payload,
 		UpdatedAt:  ua,
 		SyncCursor: syncCursor,
-		DeletedAt:  timestamptzEpochMsPtr(deletedAt),
+		DeletedAt:  syncdomain.TimestamptzEpochMsPtr(deletedAt),
 	}, nil
 }
 

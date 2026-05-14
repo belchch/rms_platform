@@ -1,4 +1,4 @@
-package sync
+package syncdomain
 
 import (
 	"context"
@@ -137,7 +137,7 @@ func TestWorkspaceOfWall(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := tt.setupFake()
-			wsID, err := workspaceOfWall(ctx, q, "wall-1")
+			wsID, err := WorkspaceOfWall(ctx, q, "wall-1")
 
 			if tt.wantErr != nil {
 				require.Error(t, err)

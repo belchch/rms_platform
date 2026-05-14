@@ -48,28 +48,28 @@ func (h *handler) push(ctx context.Context, in *PushInput) (*PushOutput, error) 
 
 		res := applyPushOperation(ctx, qtx, wsID, op)
 
-		if res.pushError != nil {
-			res.pushError.ClientOpID = op.ClientOpID
-			out.Body.Errors = append(out.Body.Errors, *res.pushError)
+		if res.PushError != nil {
+			res.PushError.ClientOpID = op.ClientOpID
+			out.Body.Errors = append(out.Body.Errors, *res.PushError)
 			if _, rbErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+sp); rbErr != nil {
 				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Str("after", "pushError").Msg("sync push rollback savepoint failed")
 				return nil, fmt.Errorf("sync push rollback savepoint: %w", rbErr)
 			}
 			continue
 		}
-		if res.conflict != nil {
-			res.conflict.ClientOpID = op.ClientOpID
-			out.Body.Conflicts = append(out.Body.Conflicts, *res.conflict)
+		if res.Conflict != nil {
+			res.Conflict.ClientOpID = op.ClientOpID
+			out.Body.Conflicts = append(out.Body.Conflicts, *res.Conflict)
 			if _, rbErr := tx.Exec(ctx, "ROLLBACK TO SAVEPOINT "+sp); rbErr != nil {
 				log.Error().Err(rbErr).Str("workspaceId", wsID).Int("opIndex", i).Str("after", "conflict").Msg("sync push rollback savepoint failed")
 				return nil, fmt.Errorf("sync push rollback savepoint: %w", rbErr)
 			}
 			continue
 		}
-		if res.applied {
+		if res.Applied {
 			out.Body.Applied = append(out.Body.Applied, op.ClientOpID)
-			if res.cursor > maxCursor {
-				maxCursor = res.cursor
+			if res.Cursor > maxCursor {
+				maxCursor = res.Cursor
 			}
 		}
 		if _, err := tx.Exec(ctx, "RELEASE SAVEPOINT "+sp); err != nil {

@@ -54,7 +54,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         json.RawMessage(`not-json`),
 		})
-		require.Equal(t, "validation", res.pushError.Reason)
+		require.Equal(t, "validation", res.PushError.Reason)
 	})
 
 	t.Run("empty roomId — validation", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(""),
 		})
-		require.Equal(t, "roomId is required", res.pushError.Message)
+		require.Equal(t, "roomId is required", res.PushError.Message)
 	})
 
 	t.Run("room not found — notFound", func(t *testing.T) {
@@ -80,8 +80,8 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "notFound", res.pushError.Reason)
-		require.Equal(t, "room not found", res.pushError.Message)
+		require.Equal(t, "notFound", res.PushError.Reason)
+		require.Equal(t, "room not found", res.PushError.Message)
 	})
 
 	t.Run("parent room workspace forbidden", func(t *testing.T) {
@@ -102,7 +102,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("no wall, OpCreate — applied", func(t *testing.T) {
@@ -122,8 +122,8 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.True(t, res.applied)
-		require.Equal(t, int64(8), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(8), res.Cursor)
 	})
 
 	t.Run("no wall, OpUpdate — notFound", func(t *testing.T) {
@@ -137,7 +137,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "wall not found", res.pushError.Message)
+		require.Equal(t, "wall not found", res.PushError.Message)
 	})
 
 	t.Run("existing wall wrong workspace", func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("stale", func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "stale", res.conflict.Reason)
+		require.Equal(t, "stale", res.Conflict.Reason)
 	})
 
 	t.Run("client wins", func(t *testing.T) {
@@ -200,8 +200,8 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.True(t, res.applied)
-		require.Equal(t, int64(6), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(6), res.Cursor)
 	})
 
 	t.Run("GetRoomByID error — internal", func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestPushWallUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         wallPayload(roomID),
 		})
-		require.Equal(t, "internal", res.pushError.Reason)
+		require.Equal(t, "internal", res.PushError.Reason)
 	})
 }
 
@@ -242,7 +242,7 @@ func TestPushWallDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.Equal(t, "notFound", res.pushError.Reason)
+		require.Equal(t, "notFound", res.PushError.Reason)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
@@ -264,7 +264,7 @@ func TestPushWallDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("stale", func(t *testing.T) {
@@ -286,7 +286,7 @@ func TestPushWallDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
-		require.Equal(t, "stale", res.conflict.Reason)
+		require.Equal(t, "stale", res.Conflict.Reason)
 	})
 
 	t.Run("applied", func(t *testing.T) {
@@ -311,7 +311,7 @@ func TestPushWallDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.True(t, res.applied)
-		require.Equal(t, int64(22), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(22), res.Cursor)
 	})
 }

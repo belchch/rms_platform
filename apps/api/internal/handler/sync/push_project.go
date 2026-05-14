@@ -9,6 +9,7 @@ import (
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
 )
 
 func projectSnapshot(p db.Project) (synctypes.EntitySnapshot, error) {
@@ -30,30 +31,30 @@ func projectSnapshot(p db.Project) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func pushProject(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushProject(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
 		return pushProjectDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
 		return pushProjectUpsert(ctx, q, wsID, op)
 	default:
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
 }
 
-func pushProjectUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushProjectUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	var payload synctypes.ProjectPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid project payload"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "invalid project payload"}}
 	}
 	if payload.Name == "" {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "name is required"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "name is required"}}
 	}
 
 	row, err := q.GetProjectByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if op.Op == synctypes.OpUpdate {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
+			return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
 		}
 		out, err := q.UpsertProject(ctx, db.UpsertProjectParams{
 			ID:          op.EntityID,
@@ -63,29 +64,29 @@ func pushProjectUpsert(ctx context.Context, q db.Querier, wsID string, op syncty
 			Description: payload.Description,
 			IsArchived:  payload.IsArchived,
 			IsFavourite: payload.IsFavourite,
-			UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
+			UpdatedAt:   syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{applied: true, cursor: out.SyncCursor}
+		return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
-		return pushStepResult{pushError: ve}
+	if ve := syncdomain.ValidateWorkspace(row.WorkspaceID, wsID); ve != nil {
+		return syncdomain.PushStepResult{PushError: ve}
 	}
-	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	wins, err := syncdomain.LWWWins(op.ClientUpdatedAt, row.UpdatedAt)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
 	if !wins {
 		snap, err := projectSnapshot(row)
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
+		return syncdomain.PushStepResult{Conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
 	out, err := q.UpsertProject(ctx, db.UpsertProjectParams{
 		ID:          op.EntityID,
@@ -95,42 +96,42 @@ func pushProjectUpsert(ctx context.Context, q db.Querier, wsID string, op syncty
 		Description: payload.Description,
 		IsArchived:  payload.IsArchived,
 		IsFavourite: payload.IsFavourite,
-		UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
+		UpdatedAt:   syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	return pushStepResult{applied: true, cursor: out.SyncCursor}
+	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }
 
-func pushProjectDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushProjectDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	row, err := q.GetProjectByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
 	}
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	if ve := validateWorkspace(row.WorkspaceID, wsID); ve != nil {
-		return pushStepResult{pushError: ve}
+	if ve := syncdomain.ValidateWorkspace(row.WorkspaceID, wsID); ve != nil {
+		return syncdomain.PushStepResult{PushError: ve}
 	}
-	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	wins, err := syncdomain.LWWWins(op.ClientUpdatedAt, row.UpdatedAt)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
 	if !wins {
 		snap, err := projectSnapshot(row)
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
+		return syncdomain.PushStepResult{Conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
 	out, err := q.SoftDeleteProject(ctx, db.SoftDeleteProjectParams{
 		ID:        op.EntityID,
-		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
+		UpdatedAt: syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	return pushStepResult{applied: true, cursor: out.SyncCursor}
+	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }

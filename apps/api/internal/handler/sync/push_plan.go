@@ -9,6 +9,7 @@ import (
 
 	"github.com/belchch/rms_platform/api/internal/db"
 	synctypes "github.com/belchch/rms_platform/api/internal/sync"
+	"github.com/belchch/rms_platform/api/internal/handler/sync/syncdomain"
 )
 
 func planSnapshot(p db.Plan) (synctypes.EntitySnapshot, error) {
@@ -28,76 +29,76 @@ func planSnapshot(p db.Plan) (synctypes.EntitySnapshot, error) {
 	}, nil
 }
 
-func pushPlan(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPlan(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	switch op.Op {
 	case synctypes.OpDelete:
 		return pushPlanDelete(ctx, q, wsID, op)
 	case synctypes.OpCreate, synctypes.OpUpdate:
 		return pushPlanUpsert(ctx, q, wsID, op)
 	default:
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "unknown", Message: "unsupported op"}}
 	}
 }
 
-func pushPlanUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPlanUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	var payload synctypes.PlanPayload
 	if err := json.Unmarshal(op.Payload, &payload); err != nil {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "invalid plan payload"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "invalid plan payload"}}
 	}
 	if payload.ProjectID == "" || payload.Name == "" {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "validation", Message: "projectId and name are required"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "validation", Message: "projectId and name are required"}}
 	}
 
 	parentProj, err := q.GetProjectByID(ctx, payload.ProjectID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "project not found"}}
 	}
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	if ve := validateWorkspace(parentProj.WorkspaceID, wsID); ve != nil {
-		return pushStepResult{pushError: ve}
+	if ve := syncdomain.ValidateWorkspace(parentProj.WorkspaceID, wsID); ve != nil {
+		return syncdomain.PushStepResult{PushError: ve}
 	}
 
 	row, err := q.GetPlanByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if op.Op == synctypes.OpUpdate {
-			return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
+			return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
 		}
 		out, err := q.UpsertPlan(ctx, db.UpsertPlanParams{
 			ID:          op.EntityID,
 			ProjectID:   payload.ProjectID,
 			Name:        payload.Name,
 			PayloadJson: payload.PayloadJSON,
-			UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
+			UpdatedAt:   syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 		})
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{applied: true, cursor: out.SyncCursor}
+		return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 	}
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
 
-	pws, err := workspaceOfPlan(ctx, q, row.ID)
+	pws, err := syncdomain.WorkspaceOfPlan(ctx, q, row.ID)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	if ve := validateWorkspace(pws, wsID); ve != nil {
-		return pushStepResult{pushError: ve}
+	if ve := syncdomain.ValidateWorkspace(pws, wsID); ve != nil {
+		return syncdomain.PushStepResult{PushError: ve}
 	}
 
-	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	wins, err := syncdomain.LWWWins(op.ClientUpdatedAt, row.UpdatedAt)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
 	if !wins {
 		snap, err := planSnapshot(row)
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
+		return syncdomain.PushStepResult{Conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
 
 	out, err := q.UpsertPlan(ctx, db.UpsertPlanParams{
@@ -105,46 +106,46 @@ func pushPlanUpsert(ctx context.Context, q db.Querier, wsID string, op synctypes
 		ProjectID:   payload.ProjectID,
 		Name:        payload.Name,
 		PayloadJson: payload.PayloadJSON,
-		UpdatedAt:   epochMsToTimestamptz(op.ClientUpdatedAt),
+		UpdatedAt:   syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	return pushStepResult{applied: true, cursor: out.SyncCursor}
+	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }
 
-func pushPlanDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) pushStepResult {
+func pushPlanDelete(ctx context.Context, q db.Querier, wsID string, op synctypes.PushOperation) syncdomain.PushStepResult {
 	row, err := q.GetPlanByID(ctx, op.EntityID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pushStepResult{pushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
+		return syncdomain.PushStepResult{PushError: &synctypes.PushError{Reason: "notFound", Message: "plan not found"}}
 	}
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	pws, err := workspaceOfPlan(ctx, q, row.ID)
+	pws, err := syncdomain.WorkspaceOfPlan(ctx, q, row.ID)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	if ve := validateWorkspace(pws, wsID); ve != nil {
-		return pushStepResult{pushError: ve}
+	if ve := syncdomain.ValidateWorkspace(pws, wsID); ve != nil {
+		return syncdomain.PushStepResult{PushError: ve}
 	}
-	wins, err := lwwWins(op.ClientUpdatedAt, row.UpdatedAt)
+	wins, err := syncdomain.LWWWins(op.ClientUpdatedAt, row.UpdatedAt)
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
 	if !wins {
 		snap, err := planSnapshot(row)
 		if err != nil {
-			return internalPushErr(op, err)
+			return syncdomain.InternalPushErr(op, err)
 		}
-		return pushStepResult{conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
+		return syncdomain.PushStepResult{Conflict: &synctypes.PushConflict{Reason: "stale", ServerVersion: snap}}
 	}
 	out, err := q.SoftDeletePlan(ctx, db.SoftDeletePlanParams{
 		ID:        op.EntityID,
-		UpdatedAt: epochMsToTimestamptz(op.ClientUpdatedAt),
+		UpdatedAt: syncdomain.EpochMsToTimestamptz(op.ClientUpdatedAt),
 	})
 	if err != nil {
-		return internalPushErr(op, err)
+		return syncdomain.InternalPushErr(op, err)
 	}
-	return pushStepResult{applied: true, cursor: out.SyncCursor}
+	return syncdomain.PushStepResult{Applied: true, Cursor: out.SyncCursor}
 }

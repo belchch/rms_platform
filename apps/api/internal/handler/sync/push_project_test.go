@@ -39,9 +39,9 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         json.RawMessage(`not-json`),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "validation", res.pushError.Reason)
-		require.Equal(t, "invalid project payload", res.pushError.Message)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "validation", res.PushError.Reason)
+		require.Equal(t, "invalid project payload", res.PushError.Message)
 	})
 
 	t.Run("empty name — validation", func(t *testing.T) {
@@ -54,9 +54,9 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload(""),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "validation", res.pushError.Reason)
-		require.Equal(t, "name is required", res.pushError.Message)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "validation", res.PushError.Reason)
+		require.Equal(t, "name is required", res.PushError.Message)
 	})
 
 	t.Run("no row, OpCreate — applied", func(t *testing.T) {
@@ -78,10 +78,10 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("New Project"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.True(t, res.applied)
-		require.Equal(t, int64(9001), res.cursor)
-		require.Nil(t, res.pushError)
-		require.Nil(t, res.conflict)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(9001), res.Cursor)
+		require.Nil(t, res.PushError)
+		require.Nil(t, res.Conflict)
 	})
 
 	t.Run("no row, OpUpdate — notFound", func(t *testing.T) {
@@ -98,8 +98,8 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("X"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "notFound", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "notFound", res.PushError.Reason)
 	})
 
 	t.Run("GetProjectByID non-NoRows error — internal", func(t *testing.T) {
@@ -117,8 +117,8 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("P"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "internal", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "internal", res.PushError.Reason)
 	})
 
 	t.Run("wrong workspace — forbidden", func(t *testing.T) {
@@ -140,8 +140,8 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("Mutator"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("same workspace, client stale — conflict stale", func(t *testing.T) {
@@ -163,9 +163,9 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("Client Title"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.conflict)
-		require.Equal(t, "stale", res.conflict.Reason)
-		require.Equal(t, synctypes.EntityTypeProject, res.conflict.ServerVersion.EntityType)
+		require.NotNil(t, res.Conflict)
+		require.Equal(t, "stale", res.Conflict.Reason)
+		require.Equal(t, synctypes.EntityTypeProject, res.Conflict.ServerVersion.EntityType)
 	})
 
 	t.Run("same workspace, client wins — applied", func(t *testing.T) {
@@ -191,9 +191,9 @@ func TestPushProjectUpsert(t *testing.T) {
 			Payload:         namePayload("Winner"),
 		}
 		res := pushProjectUpsert(ctx, q, wsID, op)
-		require.True(t, res.applied)
-		require.Equal(t, int64(42), res.cursor)
-		require.Nil(t, res.pushError)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(42), res.Cursor)
+		require.Nil(t, res.PushError)
 	})
 }
 
@@ -215,8 +215,8 @@ func TestPushProjectDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "notFound", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "notFound", res.PushError.Reason)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestPushProjectDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("stale", func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestPushProjectDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
-		require.Equal(t, "stale", res.conflict.Reason)
+		require.Equal(t, "stale", res.Conflict.Reason)
 	})
 
 	t.Run("applied", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestPushProjectDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.True(t, res.applied)
-		require.Equal(t, int64(31), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(31), res.Cursor)
 	})
 }

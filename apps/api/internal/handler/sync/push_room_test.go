@@ -41,8 +41,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         json.RawMessage(`not-json`),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "validation", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "validation", res.PushError.Reason)
 	})
 
 	t.Run("empty planId — validation", func(t *testing.T) {
@@ -54,8 +54,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload("", &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "planId is required", res.pushError.Message)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "planId is required", res.PushError.Message)
 	})
 
 	t.Run("plan not found — notFound", func(t *testing.T) {
@@ -71,9 +71,9 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "notFound", res.pushError.Reason)
-		require.Equal(t, "plan not found", res.pushError.Message)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "notFound", res.PushError.Reason)
+		require.Equal(t, "plan not found", res.PushError.Message)
 	})
 
 	t.Run("parent plan workspace mismatch — forbidden", func(t *testing.T) {
@@ -92,8 +92,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("no room, OpCreate — applied", func(t *testing.T) {
@@ -121,8 +121,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.True(t, res.applied)
-		require.Equal(t, int64(12), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(12), res.Cursor)
 	})
 
 	t.Run("no room, OpUpdate — notFound", func(t *testing.T) {
@@ -144,8 +144,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "room not found", res.pushError.Message)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "room not found", res.PushError.Message)
 	})
 
 	t.Run("existing room forbidden workspace", func(t *testing.T) {
@@ -173,8 +173,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("stale conflict", func(t *testing.T) {
@@ -196,8 +196,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.NotNil(t, res.conflict)
-		require.Equal(t, "stale", res.conflict.Reason)
+		require.NotNil(t, res.Conflict)
+		require.Equal(t, "stale", res.Conflict.Reason)
 	})
 
 	t.Run("client wins", func(t *testing.T) {
@@ -222,8 +222,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			Payload:         roomPayload(planID, &name),
 		}
 		res := pushRoomUpsert(ctx, q, wsID, op)
-		require.True(t, res.applied)
-		require.Equal(t, int64(3), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(3), res.Cursor)
 	})
 
 	t.Run("GetPlanByID error — internal", func(t *testing.T) {
@@ -239,8 +239,8 @@ func TestPushRoomUpsert(t *testing.T) {
 			ClientUpdatedAt: serverMs + 1,
 			Payload:         roomPayload(planID, &name),
 		})
-		require.NotNil(t, res.pushError)
-		require.Equal(t, "internal", res.pushError.Reason)
+		require.NotNil(t, res.PushError)
+		require.Equal(t, "internal", res.PushError.Reason)
 	})
 }
 
@@ -264,7 +264,7 @@ func TestPushRoomDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.Equal(t, "notFound", res.pushError.Reason)
+		require.Equal(t, "notFound", res.PushError.Reason)
 	})
 
 	t.Run("forbidden", func(t *testing.T) {
@@ -283,7 +283,7 @@ func TestPushRoomDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.Equal(t, "forbidden", res.pushError.Reason)
+		require.Equal(t, "forbidden", res.PushError.Reason)
 	})
 
 	t.Run("stale", func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestPushRoomDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs,
 		})
-		require.Equal(t, "stale", res.conflict.Reason)
+		require.Equal(t, "stale", res.Conflict.Reason)
 	})
 
 	t.Run("applied", func(t *testing.T) {
@@ -324,7 +324,7 @@ func TestPushRoomDelete(t *testing.T) {
 			EntityID:        entityID,
 			ClientUpdatedAt: serverMs + 1,
 		})
-		require.True(t, res.applied)
-		require.Equal(t, int64(44), res.cursor)
+		require.True(t, res.Applied)
+		require.Equal(t, int64(44), res.Cursor)
 	})
 }
